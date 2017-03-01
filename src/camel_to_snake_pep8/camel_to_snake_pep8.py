@@ -35,6 +35,8 @@ import os
 import rope
 import re
 import difflib
+import itertools
+
 from rope.base.project import Project
 from rope.refactor.rename import Rename
 from rope.base import worder
@@ -74,6 +76,8 @@ all_cap_re = re.compile('([a-z0-9])([A-Z])')  # Used in camel_to_snake.
 def camel_to_snake(name):
     """Convert possible camelcase string to snake case."""
     # From: http://stackoverflow.com/questions/1175208/
+    if all(c.isupper() or c == "_" for c in name): # Regexes fail on all-cap constants.
+        return name
     s1 = first_cap_re.sub(r'\1_\2', name)
     return all_cap_re.sub(r'\1_\2', s1).lower()
 
@@ -127,6 +131,57 @@ def filename_to_module_name(fname):
     module_name = relpath.replace(os.path.sep, ".")
     return module_name
 
+def get_function_parameter_names(fun_string):
+    """Parse a function string to get the parameter names which are
+    not assigned default values (since those are taken care of in the
+    variable-assignment group)."""
+    name_list = []
+    if not fun_string:
+        return []
+    #print("initial fun string is:", fun_string)
+    arg_string = fun_string.split("(", 1)[1] # First paren.
+    #print("arg string is:", arg_string)
+    arg_string = arg_string.split("->", 1)[0] # Return arg in typing.
+    #print("arg string is:", arg_string)
+    arg_string = arg_string[::-1].split(")", 1)[1][::-1] # Last paren.
+    if not arg_string: # Fun with no params.
+        return []
+    #print("arg string is:", arg_string)
+    arg_list = arg_string.split(",") # Split on params, make in to list.
+    #print("arg list is:", arg_list)
+    arg_list = [a.split(":") for a in arg_list] # Typing in Python 3.
+    arg_list = [a[1] if len(a) == 2 else a[0] for a in arg_list] # Typing in Python 3.
+    #print("arg list is:", arg_list)
+    #arg_list = [a.split("=")[0] for a in arg_list] # Keep param with default.
+    arg_list = [a for a in arg_list if "=" not in a] # Ignore param with default.
+    #print("arg list is:", arg_list)
+    arg_list = [a.replace("*", "") for a in arg_list] # Varargs asterisks.
+    #print("arg list is:", arg_list)
+    arg_list = [a.strip() for a in arg_list if a] # Get rid of keyword-only '*' arg.
+    #print("arg string is", arg_string)
+    return arg_list
+
+def unique_everseen(iterable, key=None):
+    "List unique elements, preserving order. Remember all elements ever seen."
+    # unique_everseen('AAAABBBCCDAABBB') --> A B C D
+    # unique_everseen('ABBCcAD', str.lower) --> A B C D
+    # https://docs.python.org/3/library/itertools.html#recipes
+    seen = set()
+    seen_add = seen.add
+    if key is None:
+        for element in itertools.ifilterfalse(seen.__contains__, iterable):
+            seen_add(element)
+            yield element
+    else:
+        for element in iterable:
+            k = key(element)
+            if k not in seen:
+                seen_add(k)
+                yield element
+
+#u = unique_everseen("AABBBBCCAA")
+#print("uniq", [z for z in u])
+
 #
 # Functions that do the real work.
 #
@@ -145,9 +200,20 @@ def filename_to_module_name(fname):
 # become invalid after the changes!  So you'd need to re-read the file each
 # time.
 
-def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=False,
+def rope_iterate_worder(source_file_name, original_name_set=None, fun_name_defs=False, fun_arguments=False,
                         fun_keywords=False, assigned_vars=False, unfiltered=False):
-    """Get all the names of a given type and their offsets."""
+    """Get all the names of a given type and their offsets.
+
+    Due to how rope works these are split up in an unusual way.  The function arguments
+    without default values are parsed out of the string representing the function
+    and its arguments.
+
+    fun_name_defs = all function and method defs
+    fun_arguments = function arguments which do now have default values
+    fun_keywords = function keywords (which duplicate the assigned vars changes)
+    assigned_vars = any variables which are assigned, including keyword parameters
+
+    """
     # Currently based on Worder class:
     # https://github.com/python-rope/rope/blob/master/rope/base/worder.py
     if unfiltered:
@@ -160,35 +226,59 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
     w = worder.Worder(source_string)
 
     possible_changes = []
+    #fun_args_watch_list = []
     upcoming = None
-    i = 0
+    offset = 0
     while True:
         try:
-            word = w.get_word_at(i)
+            word = w.get_word_at(offset)
         except (ValueError, IndexError):
             break
 
-        if w.is_function_keyword_parameter(i) and fun_keywords:
-            possible_changes.append([word, i])
+        #print("word is:", word, "fun_args_watch_list is:", fun_args_watch_list)
+        #if fun_args_watch_list and word == fun_args_watch_list[0]:
+        #    print("Got a fun_args_watchlist match with:", word)
+        #    print("fun_args_watch_list is:", fun_args_watch_list)
+        #    del fun_args_watch_list[0]
+        #    if fun_arguments:
+        #        possible_changes.append([word, offset])
 
-        elif w.is_assigned_here(i) and assigned_vars:
-            possible_changes.append([word, i])
+        if w.is_function_keyword_parameter(offset) and fun_keywords:
+            possible_changes.append([word, offset])
 
-        if word == "def":
+        elif w.is_assigned_here(offset) and assigned_vars:
+            possible_changes.append([word, offset])
+
+        elif word == "def":
             upcoming = "def"
         elif word == "class":
             upcoming = "class"
         else:
-            if upcoming == "def" and w.is_a_class_or_function_name_in_header(i):
+            if upcoming == "def" and w.is_a_class_or_function_name_in_header(offset):
                 if fun_name_defs:
-                    possible_changes.append([word, i])
+                    possible_changes.append([word, offset])
                 upcoming = None
 
                 try:
-                    fun_and_args = w.get_function_and_args_in_header(i)
+                    fun_and_args = w.get_function_and_args_in_header(offset)
                 except (ValueError, IndexError):
                     fun_and_args = None
-                #print("function and args", fun_and_args)
+                #print("fun_and_args is:", fun_and_args)
+                fun_args_watch_list = get_function_parameter_names(fun_and_args)
+                # TODO FAILS because the offset is not updated!  Maybe count from
+                # the source string?  Keep watch list outer but compare with
+                # the source string for match?  Probably want to do at bottom,
+                # when the offset is skipping... IF the problem is that it does
+                # not find those arguments as words.  Really need to save in
+                # the parsing, though... otherwise problems.  Then can just do
+                # here and it should work if offsets match strings (as they seem to).
+                if fun_arguments:
+                    for a in fun_args_watch_list:
+                        possible_changes.append([word, offset])
+                #if original_name_set:
+                #    if not all(a in original_name_set for a in fun_args_watch_list):
+                #        print("Failure on fun args:", fun_args_watch_list)
+                #print("fun_args_watch_list is:", fun_args_watch_list)
 
                 #try:
                 #    fun_offset = w.find_function_offset(i)
@@ -201,9 +291,9 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
         # Move the offset pointer ahead until the recognized word changes.
         break_outer = False
         while True:
-            i += 1
+            offset += 1
             try:
-                next_word = w.get_word_at(i)
+                next_word = w.get_word_at(offset)
                 if next_word != word:
                     break
             except (ValueError, IndexError):
@@ -215,14 +305,18 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
     if unfiltered:
         return possible_changes
 
-    # Filter out the possible changes that are already in snake case.
+    # Filter out the possible changes that are already in snake case, save new name.
     filtered_changes = []
     for c in possible_changes:
         new_name = camel_to_snake(c[0])
         if new_name == c[0]:
             continue
         c.append(new_name)
-        filtered_changes.append(c)
+        filtered_changes.append(tuple(c))
+
+    # Remove duplicates and return.
+    unique_changes_generator = unique_everseen(filtered_changes)
+    filtered_changes = [c for c in unique_changes_generator]
     return filtered_changes
 
 def rope_rename_refactor(project, source_file_name, possible_changes, original_name_set):
@@ -235,6 +329,10 @@ def rope_rename_refactor(project, source_file_name, possible_changes, original_n
     # NOTE alb, Rename(project, resource, offset), where project and offset
     # are described below.  Offset is a character count into a resource,
     # which seems to be a module.  Offset of None refers to the resource itself.
+
+    if not possible_changes:
+        print("No possible changes found.\n")
+        return False
 
     module_name = filename_to_module_name(source_file_name)
     module = project.find_module(module_name)
@@ -315,35 +413,35 @@ def main():
 
         original_names_in_module = rope_iterate_worder(filename, unfiltered=True)
         original_name_set = set(c[0] for c in original_names_in_module)
-        print("Original names are", list(original_name_set))
 
         print_banner("Changing variables assigned in the code.")
         while change_assigned_variables:
-            possible_changes = rope_iterate_worder(filename, assigned_vars=True)
+            possible_changes = rope_iterate_worder(filename, original_name_set, assigned_vars=True)
+            if not rope_rename_refactor(project, filename, possible_changes,
+                                        original_name_set):
+                break
+
+        print_banner("Changing function arguments which do not have defaults.")
+        while change_function_and_method_arguments:
+            possible_changes = rope_iterate_worder(filename, original_name_set, fun_arguments=True)
             if not rope_rename_refactor(project, filename, possible_changes,
                                         original_name_set):
                 break
 
         print_banner("Changing function and method names.")
         while change_function_and_method_names:
-            possible_changes = rope_iterate_worder(filename, fun_name_defs=True)
+            possible_changes = rope_iterate_worder(filename, original_name_set, fun_name_defs=True)
             if not rope_rename_refactor(project, filename, possible_changes,
                                         original_name_set):
                 break
 
         print_banner("Changing function and method keywords.")
         while change_function_and_method_keywords:
-            possible_changes = rope_iterate_worder(filename, fun_keywords=True)
+            possible_changes = rope_iterate_worder(filename, original_name_set, fun_keywords=True)
             if not rope_rename_refactor(project, filename, possible_changes,
                                         original_name_set):
                 break
 
-        print_banner("Changing unassigned function and method arguments.")
-        while change_function_and_method_arguments:
-            possible_changes = rope_iterate_worder(filename, assigned_vars=True)
-            if not rope_rename_refactor(project, filename, possible_changes,
-                                        original_name_set):
-                break
 
     project.close()
 
