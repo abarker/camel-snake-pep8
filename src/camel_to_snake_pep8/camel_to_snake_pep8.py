@@ -48,6 +48,9 @@ project (using the methods of the rope Project class and others).
     themselves) to be sure.  As an alternative, a slightly different snake case
     name can be tried by hitting ``c`` on the query.
 
+    Possible problems can also arise from cases where Rope cannot resolve a
+    name to change and the change is skipped.
+
 """
 
 from __future__ import print_function, division
@@ -517,6 +520,18 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
     #print("Deduped filtered changes:", filtered_changes)
     return filtered_changes
 
+def get_renaming_changes(project, module, offset, new_name, name, source_file_name):
+    """Get the changes for doing a rename refactoring."""
+    try:
+        changes = Rename(project, module, offset).get_changes(
+                                       new_name, docs=True, unsure=None)
+        return changes
+    except rope.base.exceptions.RefactoringError:
+        print("Error in performing a rename from '{0}' to '{1}' in file"
+              "\n   {2}".format(name, new_name, source_file_name))
+        #raise
+    return None
+
 def rope_rename_refactor(project, source_file_name, possible_changes):
     """Query the user about changes to make.  Do at most one change (since all
     the possible change offsets are generated again after a change).  If a
@@ -531,7 +546,6 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
     # which seems to be a module.  Offset of None refers to the resource itself.
 
     if not possible_changes:
-        print("No possible changes found.\n")
         return False
 
     module_name = filename_to_module_name(source_file_name)
@@ -540,8 +554,12 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
     for name, offset, new_name in possible_changes:
         #print("DEBUG name, offset, new_name:", name, offset, new_name)
         while True:
-            changes = Rename(project, module, offset).get_changes(
-                                               new_name, docs=True, unsure=None)
+            skip_change = False # Skip changes that rope simply cannot resolve.
+            changes = get_renaming_changes(project, module, offset, new_name, name,
+                                           source_file_name)
+            if not changes:
+                skip_change = True
+                break
             change_string = changes.get_description()
             changed_resources = list(changes.get_changed_resources())
 
@@ -591,13 +609,25 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
             elif yes_no in "yY" or (yes_no not in "nN" and not warning):
                 project.do(changes)
             else:
-                print("DEBUG change to magic cookie")
-                changes = Rename(project, module, offset).get_changes(
-                                 create_rejected_change_preserve_name(name),
-                                 docs=False, unsure=None)
+                skip_change = False
+                changes = get_renaming_changes(project, module, offset,
+                              create_rejected_change_preserve_name(name),
+                              name, source_file_name)
+                if not changes:
+                    skip_change = True
+                    break
+                #changes = Rename(project, module, offset).get_changes(
+                #                 create_rejected_change_preserve_name(name),
+                #                 docs=False, unsure=None)
                 project.do(changes)
 
             break
+        if skip_change:
+            print("Rope cannot properly resolve the change, or some other Rope problem.")
+            print("Skipping the change...\n")
+            print_color(blue_info_color, "-" * banner_width)
+            print()
+            continue
         print()
         print_color(blue_info_color, "-" * banner_width)
         print()
@@ -608,13 +638,13 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
 def main():
     print_banner("Running camel_to_snake_pep8.")
 
-    print("The default for query replies (such as with enter) when no warning/caution"
-          "\nis given is YES, i.e, do the changes.  If a warning/caution is given then"
-          "\nthe default is NO.")
+    print("The default reply for queries (e.g. with enter) when no warning/caution"
+          "\nis given is 'y', i.e, do the changes.  If a warning/caution is given then"
+          "\nthe default reply is 'n'.")
     print("\nEntering 'c' will query for a changed name string from the user.")
 
-    print("\nIt is safer to make all changes to a given module"
-          " in the same run of the\nprogram because warnings of"
+    print("\nIt is safer to make all changes to a given package/module"
+          " in the same run of\nthe program because warnings of"
           " possible collisions will be more accurate.")
 
     if project_is_package:
@@ -634,11 +664,13 @@ def main():
     project = Project(project_dir)
 
     # Analyze the project.
-    #print_color(blue_info_color, "Analyzing all the modules in the project,"
-    #                                                       " may be slow...")
-    #rope.base.libutils.analyze_modules(project) # Analyze all the modules.
-    #print_color(blue_info_color, "Finished the analysis.", sep="")
-    #print()
+    # Does this help refactoring?  See below for related discussion.
+    # https://groups.google.com/forum/#!topic/rope-dev/1P8OADQ0DQ4
+    print_color(blue_info_color, "Analyzing all the modules in the project,"
+                                                           " may be slow...")
+    rope.base.libutils.analyze_modules(project) # Analyze all the modules.
+    print_color(blue_info_color, "Finished the analysis.", sep="")
+    print()
 
     for filename in fname_list:
         print_banner("Python module name: " + filename_to_module_name(filename), char="%")
@@ -646,18 +678,21 @@ def main():
         print_banner("Changing variables assigned in the code.")
         while change_assigned_variables:
             possible_changes = rope_iterate_worder(filename, assigned_vars=True)
+            if not possible_changes: print("No more variable assignment changes.\n")
             if not rope_rename_refactor(project, filename, possible_changes):
                 break
 
         print_banner("Changing function arguments which do not have defaults.")
         while change_function_and_method_arguments:
             possible_changes = rope_iterate_worder(filename, fun_arguments=True)
+            if not possible_changes: print("No more function argument changes.\n")
             if not rope_rename_refactor(project, filename, possible_changes):
                 break
 
         print_banner("Changing function and method names.")
         while change_function_and_method_names:
             possible_changes = rope_iterate_worder(filename, fun_name_defs=True)
+            if not possible_changes: print("No more function and method name changes.\n")
             if not rope_rename_refactor(project, filename, possible_changes):
                 break
 
@@ -665,6 +700,7 @@ def main():
             print_banner("Changing function and method keywords.")
             while change_function_and_method_keywords:
                 possible_changes = rope_iterate_worder(filename, fun_keywords=True)
+                if not possible_changes: print("No more function and method keyword changes.\n")
                 if not rope_rename_refactor(project, filename, possible_changes):
                     break
 
@@ -674,6 +710,8 @@ if __name__ == "__main__":
 
     try:
         main()
+    except (KeyboardInterrupt, EOFError):
+        print("\nProgram exited by keyboard interrupt.", file=sys.stdout)
     finally:
         remove_rejected_change_magic_cookies(modified_modules_set)
 
