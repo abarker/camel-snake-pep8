@@ -113,9 +113,6 @@ def print_banner(text, big=False, char="="):
 def filename_to_module_name(fname):
     """Return the module name from a filename.  Not fully qualified for the
     package, though."""
-    # TODO: Not sure if this works on subpackages.  What if modules have
-    # the same name in different subpackages?
-
     # Code gives right dotted module paths, but rope doesn't return the
     # full changes description like it does with the shorter name.
     #if project_is_package:
@@ -130,36 +127,6 @@ def filename_to_module_name(fname):
     relpath = relpath[:-3]
     module_name = relpath.replace(os.path.sep, ".")
     return module_name
-
-def get_function_parameter_names(fun_string):
-    """Parse a function string to get the parameter names which are
-    not assigned default values (since those are taken care of in the
-    variable-assignment group)."""
-    name_list = []
-    if not fun_string:
-        return []
-    #print("initial fun string is:", fun_string)
-    arg_string = fun_string.split("(", 1)[1] # First paren.
-    #print("arg string is:", arg_string)
-    arg_string = arg_string.split("->", 1)[0] # Return arg in typing.
-    #print("arg string is:", arg_string)
-    arg_string = arg_string[::-1].split(")", 1)[1][::-1] # Last paren.
-    if not arg_string: # Fun with no params.
-        return []
-    #print("arg string is:", arg_string)
-    arg_list = arg_string.split(",") # Split on params, make in to list.
-    #print("arg list is:", arg_list)
-    arg_list = [a.split(":") for a in arg_list] # Typing in Python 3.
-    arg_list = [a[1] if len(a) == 2 else a[0] for a in arg_list] # Typing in Python 3.
-    #print("arg list is:", arg_list)
-    #arg_list = [a.split("=")[0] for a in arg_list] # Keep param with default.
-    arg_list = [a for a in arg_list if "=" not in a] # Ignore param with default.
-    #print("arg list is:", arg_list)
-    arg_list = [a.replace("*", "") for a in arg_list] # Varargs asterisks.
-    #print("arg list is:", arg_list)
-    arg_list = [a.strip() for a in arg_list if a] # Get rid of keyword-only '*' arg.
-    #print("arg string is", arg_string)
-    return arg_list
 
 def unique_everseen(iterable, key=None):
     "List unique elements, preserving order. Remember all elements ever seen."
@@ -179,8 +146,121 @@ def unique_everseen(iterable, key=None):
                 seen_add(k)
                 yield element
 
-#u = unique_everseen("AABBBBCCAA")
-#print("uniq", [z for z in u])
+#
+# Parsing function parameter strings to get parameters without default values.
+#
+
+import re, tokenize, keyword
+def is_identifier_or_keyword(string):
+    """Test whether `string` is a keyword or identifier."""
+    # http://stackoverflow.com/questions/2544972/
+    #return re.match(tokenize.Name + '$', string) and not keyword.iskeyword(string)
+    return re.match(tokenize.Name + '$', string)
+
+def get_identifier_at(source_string, offset):
+    """Get the identifier that starts at the given character offset in the
+    source string.  Only the beginning offset returns a non-empty string."""
+    substring = ""
+    curr_offset = offset
+    valid_id = False
+    while True:
+        test_substring = substring + source_string[curr_offset]
+        if is_identifier_or_keyword(test_substring):
+            valid_id = True
+            substring = test_substring
+            curr_offset += 1
+            continue
+        elif valid_id:
+            return test_substring
+        else:
+            return None
+
+def process_param(param, offset):
+    """Process a single parameter produced by `get_function_parameter_names`."""
+    #print("   arg being processed:", param, offset)
+
+    # Ignore args with default values, since Rope considers them assignments.
+    if "=" in param:
+        #print("   returning arg:", [])
+        return []
+
+    # Strip off any type annotation.
+    first_colon_index = param.find(":")
+    if first_colon_index >= 0:
+        offset += first_colon_index + 1
+        param = param[first_colon_index+1:]
+
+    # Strip off beginning whitespace.
+    first_non_whitespace_index = len(param) - len(param.lstrip())
+    offset += first_non_whitespace_index
+    param = param.strip()
+    if not param:
+        return []
+    #print("   returning arg:", param, offset)
+    return [param, offset]
+
+def get_function_parameter_names(initial_fun_string, initial_offset):
+    """Parse a function string to get the parameter names which are
+    not assigned default values (since those are taken care of in the
+    variable-assignment group)."""
+    fun_string = initial_fun_string
+    offset = initial_offset
+
+    if not fun_string:
+        return []
+    #print("\ninitial fun string is:", fun_string)
+    # Do some initial preprocessing.
+    index = fun_string.find("(") + 1
+    fun_string = fun_string[index:].split("->")[0] # Remove fun name and return type.
+    offset += index
+    index = 0 # Keep a local index relative to first char of first arg.
+    fun_string = fun_string.rstrip()
+    #print("fun string is:", fun_string)
+
+    # Make into a list of characters.
+    close_paren_index = fun_string.rfind(")")
+    fun_string = fun_string[:close_paren_index+1]
+    fun_list = [c for c in fun_string]
+    assert fun_list[close_paren_index] == ")"
+    fun_list[close_paren_index] = "," # Map close paren to comma for consistency later.
+
+    # Turn all unneeded chars into spaces, including all inside any paren nesting.
+    simplified_fun_list = []
+    paren_count = 0
+    for c in fun_list:
+        if c in "([{":
+            paren_count += 1
+            simplified_fun_list.append(" ")
+        elif c in ")]}":
+            paren_count -= 1
+            simplified_fun_list.append(" ")
+        elif paren_count > 0 or c == "*":
+            simplified_fun_list.append(" ")
+        else:
+            simplified_fun_list.append(c)
+    fun_string = "".join(simplified_fun_list)
+    #print("fun string after quashing is:", fun_string)
+
+    # Separate the arguments and call process_arg on them.
+    final_name_list = []
+    while True:
+        comma_index = fun_string.find(",", index)
+        #print("index is", index, "comma index is", comma_index)
+        if comma_index < 0:
+            break
+        arg_string = fun_string[index:comma_index]
+        #print("passing in arg", arg_string)
+        if arg_string:
+            name_and_offset = process_param(arg_string, offset + index)
+            if name_and_offset:
+                final_name_list.append(name_and_offset)
+        index = comma_index + 1
+
+    for n in final_name_list:
+        for i in range(len(n[0])):
+            assert n[0][i] == initial_fun_string[n[1]-initial_offset + i]
+    #print("returning args:", final_name_list)
+    return final_name_list
 
 #
 # Functions that do the real work.
@@ -226,7 +306,8 @@ def rope_iterate_worder(source_file_name, original_name_set=None, fun_name_defs=
     w = worder.Worder(source_string)
 
     possible_changes = []
-    #fun_args_watch_list = []
+    fun_args_watch_list = []
+    unidentified_words = []
     upcoming = None
     offset = 0
     while True:
@@ -251,42 +332,80 @@ def rope_iterate_worder(source_file_name, original_name_set=None, fun_name_defs=
 
         elif word == "def":
             upcoming = "def"
+
         elif word == "class":
             upcoming = "class"
+
+        elif upcoming == "def" and w.is_a_class_or_function_name_in_header(offset):
+            #print("Got a fun name:", word)
+            if fun_name_defs:
+                possible_changes.append([word, offset])
+            upcoming = None
+
+            try:
+                # TODO NOTE: Adding -10 below was needed to make the CURRENT fun name
+                # detected match the function and args returned below!  Otherwise,
+                # you always got a fun name, but got the string for the one that is
+                # ahead in text...  This also makes the offsets match better...
+                # NOTE that 4 is the minimum to make them match, and it also makes
+                # the offsets match the ones found below in "unidentified" section...
+                # But now it has some other weird problems...... keeps repeating
+                # certain ones.
+                fun_and_args = w.get_function_and_args_in_header(offset-4)
+            except (ValueError, IndexError):
+                fun_and_args = None
+            #print("Fun and args string from rope is:", fun_and_args)
+            if fun_arguments:
+                fun_args_watch_list = get_function_parameter_names(fun_and_args, offset)
+                #print("args for fun", word, "are:", fun_args_watch_list)
+                possible_changes += fun_args_watch_list
+
+            #if fun_arguments:
+            #    for a in fun_args_watch_list:
+            #        possible_changes.append([word, offset])
+            #if original_name_set:
+            #    for a in fun_args_watch_list:
+            #        if not a in original_name_set:
+            #            print("Fun arg not found in orig:", a)
+
+            #print("fun_args_watch_list is:", fun_args_watch_list)
+
+            """
+            try:
+                fun_offset = w.find_function_offset(offset)
+                lparens, rparens = w.get_word_parens_range(fun_offset)
+            except (ValueError, IndexError):
+                pass # Doesn't always work...
+            arg_string = source_string[fun_offset:rparens + 1]
+            #print("arg string is", arg_string)
+            #print("Calculated offsets string from source is:", arg_string)
+            #params = w.get_parameters(fun_offset-1, rparens) # FAILS, tried guessing
+            #print("Params is:", params)
+            """
+
         else:
-            if upcoming == "def" and w.is_a_class_or_function_name_in_header(offset):
-                if fun_name_defs:
-                    possible_changes.append([word, offset])
-                upcoming = None
+            #print("-----> unidentified:", word)
+            unidentified_words.append([word, offset])
+            # Look for the function arguments anticipated in fun_args_watch_list.
+            #if fun_args_watch_list and word == fun_args_watch_list[0][0]:
+                # TODO Seems to work, but may mess up if a default value or
+                # type annotation contains a name that is the same as the
+                # variable it annotates.
+                # TODO TODO offsets do not match those calculated from parsing...
+                # currently using this code which mostly works, but would be better
+                # to use the above code to just calculate them and offsets and stick
+                # them in... but the offsets don't match. Consider:
+                #
+                #    WaterBug = 4
+                #    def dummy(EggSalad=WaterBug, WaterBug=4):
+                #        pass
+                #
+                # BUT, cannot have default def params before non-default ones...
 
-                try:
-                    fun_and_args = w.get_function_and_args_in_header(offset)
-                except (ValueError, IndexError):
-                    fun_and_args = None
-                #print("fun_and_args is:", fun_and_args)
-                fun_args_watch_list = get_function_parameter_names(fun_and_args)
-                # TODO FAILS because the offset is not updated!  Maybe count from
-                # the source string?  Keep watch list outer but compare with
-                # the source string for match?  Probably want to do at bottom,
-                # when the offset is skipping... IF the problem is that it does
-                # not find those arguments as words.  Really need to save in
-                # the parsing, though... otherwise problems.  Then can just do
-                # here and it should work if offsets match strings (as they seem to).
-                if fun_arguments:
-                    for a in fun_args_watch_list:
-                        possible_changes.append([word, offset])
-                #if original_name_set:
-                #    if not all(a in original_name_set for a in fun_args_watch_list):
-                #        print("Failure on fun args:", fun_args_watch_list)
-                #print("fun_args_watch_list is:", fun_args_watch_list)
-
-                #try:
-                #    fun_offset = w.find_function_offset(i)
-                #    lparens, rparens = w.get_word_parens_range(fun_offset)
-                #except (ValueError, IndexError):
-                #    pass # Doesn't always work...
-                #arg_string = source_string[fun_offset:rparens + 1]
-                #print("arg string is", arg_string)
+                #print("Matched loop pair", [word, offset], "with parsed", fun_args_watch_list[0])
+                #possible_changes.append([word, offset])
+                #possible_changes.append(fun_args_watch_list[0]) # causes errors in place of above
+                #del fun_args_watch_list[0]
 
         # Move the offset pointer ahead until the recognized word changes.
         break_outer = False
@@ -303,7 +422,8 @@ def rope_iterate_worder(source_file_name, original_name_set=None, fun_name_defs=
             break
 
     if unfiltered:
-        return possible_changes
+        #return possible_changes
+        return possible_changes + unidentified_words
 
     # Filter out the possible changes that are already in snake case, save new name.
     filtered_changes = []
@@ -317,12 +437,14 @@ def rope_iterate_worder(source_file_name, original_name_set=None, fun_name_defs=
     # Remove duplicates and return.
     unique_changes_generator = unique_everseen(filtered_changes)
     filtered_changes = [c for c in unique_changes_generator]
+    #print("Deduped filtered changes:", filtered_changes)
     return filtered_changes
 
 def rope_rename_refactor(project, source_file_name, possible_changes, original_name_set):
     """Query the user about changes to make.  Do at most one change (since
     all the offsets are generated again after a change).  If a change is
-    done return true, otherwise return false."""
+    done or is rejected by the user return true, otherwise if there are no changes
+    to make return false."""
     # Example refactor at:
     #    https://github.com/python-rope/rope/blob/master/docs/library.rst
 
@@ -337,13 +459,35 @@ def rope_rename_refactor(project, source_file_name, possible_changes, original_n
     module_name = filename_to_module_name(source_file_name)
     module = project.find_module(module_name)
 
+    # TODO: big problem with basic design here... it is almost impossible for a user
+    # to reject a change!  Everything is re-calculated each time, after a refactor.
+    # The offset may change, and the name may be accepted for change somewhere else!
+    # But if we keep a LIST it should presumably encounter them in the same sequence
+    # for each type of modification, since finding them is sequential.  But refactors
+    # can change many things, such as the names and offsets and file locations...
+
     for name, offset, new_name in possible_changes:
+        print("DEBUG name, offset, new_name:", name, offset, new_name)
         while True:
             changes = Rename(project, module, offset).get_changes(
                                                new_name, docs=True, unsure=None)
             change_string = changes.get_description()
+            #print("Dir of changes is:", dir(changes))
+            changed_resources = list(changes.get_changed_resources())
+            print("Changes resources are:", changed_resources)
+            for c in changed_resources:
+                print("   Path of resource changed:", c.path)
+                print("   Name of resource changed:", c.name)
+                print("   Name of resource changed:", c.real_path)
+            print()
+            # TODO: Use the realpath for each resource changed... If you haven't
+            # looked up all the names then do so RIGHT HERE!  Save them all in
+            # a dict keyed by realpath!  Just call the function to get all the
+            # names!  Look up each one used, see if warn, etc.
 
+            warning = False
             if new_name in original_name_set:
+                warning = True
                 print_color(Fore.RED, "Caution: The new name '{0}' already existed"
                         "\nsomewhere in the module before this run of the program made"
                         "\nany changes.  This may or may not cause a name collision."
@@ -358,14 +502,22 @@ def rope_rename_refactor(project, source_file_name, possible_changes, original_n
 
             # Query the user.
             print_color(blue_info_color, "Do the changes? [ync] ", end="")
-            yes_no = raw_input("")
+            yes_no = raw_input("").strip()
             if yes_no == "c":
                 print_color(blue_info_color, "Enter a different string: ", end="")
                 new_name = raw_input("")
                 print()
                 continue
-            elif yes_no not in ["n", "N"]:
+            elif yes_no in ["yY"]:
                 project.do(changes)
+            elif yes_no in ["nN"]:
+                pass
+            else:
+                if warning:
+                    pass
+                else:
+                    project.do(changes)
+            print("DEBUG breaking loop")
             break
         print()
         print_color(blue_info_color, "-" * banner_width)
@@ -377,8 +529,10 @@ def rope_rename_refactor(project, source_file_name, possible_changes, original_n
 def main():
     print_banner("Running camel_to_snake_pep8.")
 
-    print("The default on query replies (with enter) is YES.")
-    print("Entering 'c' will query for a different name string.")
+    print("The default for query replies (such as with enter) when no warning/caution"
+          "\nis given is YES, i.e, do the changes.  If a warning/caution is given then"
+          "\nthe default is NO.")
+    print("\nEntering 'c' will query for a changed name string from the user.")
 
     print("\nIt is safer to make all changes to a given module"
           " in the same run of the\nprogram because warnings of"
@@ -401,12 +555,11 @@ def main():
     project = Project(project_dir)
 
     # Analyze the project.
-    print_color(blue_info_color, "Analyzing all the modules in the project,"
-                                                           " may be slow...")
-    rope.base.libutils.analyze_modules(project) # Analyze all the modules.
-    print_color(blue_info_color, "Finished the analysis.", sep="")
-    print()
-
+    #print_color(blue_info_color, "Analyzing all the modules in the project,"
+    #                                                       " may be slow...")
+    #rope.base.libutils.analyze_modules(project) # Analyze all the modules.
+    #print_color(blue_info_color, "Finished the analysis.", sep="")
+    #print()
 
     for filename in fname_list:
         print_banner("Python module name: " + filename_to_module_name(filename))
