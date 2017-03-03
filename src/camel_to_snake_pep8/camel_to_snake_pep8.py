@@ -6,6 +6,10 @@ conformity with the PEP-8 style guide.
 
 Usage: camel_to_snake_pep8.py <packageOrProjectDir> <fileToModify> [<fileToModify> ...]
 
+For example, goto the main source directory (package root) and type:
+    camel_to_snake_pep8.py . *.py
+Be sure to include submodule Python files, too, if there are any submodules.
+
 Note that Python-Rope only supports Python2 for now!  A port is said to be in
 progress...
 
@@ -53,6 +57,11 @@ project (using the methods of the rope Project class and others).
 
 """
 
+# TODO: This program could easily be modified to change module names to camel
+# case, too.  Currently module names are recognized in rope_iterate_worder, but
+# are simply ignored.  Could add a switch to get the class name changes (using
+# a snake to camel kind of routine).
+
 from __future__ import print_function, division
 import sys
 import os
@@ -75,16 +84,57 @@ banner_width = 78
 blue_info_color = Fore.BLUE + Style.BRIGHT
 
 #
-# Dict for saving original names in files.
+# Dict for saving original names from files and related.
 #
 
 original_names_sets = {} # Original names in files, keyed by realpath to the files.
 modified_modules_set = set() # The realpaths of modified modules.
 
-def get_original_names_set(filename):
-    original_names_in_module = rope_iterate_worder(filename, unfiltered=True)
-    original_name_set = set(c[0] for c in original_names_in_module)
-    return original_name_set
+def save_original_names_set(file_realpath, save_dict=original_names_sets):
+    """Get the names in the file and save in the `original_names_dict` by default."""
+    names_in_module = rope_iterate_worder(file_realpath, unfiltered=True)
+    name_set = set(c[0] for c in names_in_module)
+    if file_realpath not in original_names_sets:
+        save_dict[file_realpath] = name_set
+
+user_rejected_changes_sets = {} # Changes rejected by the user.
+rope_rejected_changes_sets = {} # Changes rejected by rope.
+
+def save_rejected_change(realpath_list, change, user=True):
+    """Save rejected changes and the corresponding module pathnames.  Offset
+    information is removed from the middle of any 3-tuple changes since it does
+    not remain valid."""
+    if len(change) > 2:
+        change = (change[1], change[3])
+    for path in realpath_list:
+        if user:
+            user_rejected_changes_sets[path] = change
+        else:
+            rope_rejected_changes_sets[path] = change
+
+def analyze_names_in_final_state(module_realpath_list):
+    """Analyze the final names in the each module originally passed into the program,
+    giving warnings about those which could potentially have problems."""
+    print_banner("Doing post-processing analysis on the names.", big=True)
+    final_names_sets = {}
+    for module_realpath in module_realpath_list:
+        save_original_names_set(module_realpath, save_dict=final_names_sets)
+
+    print_banner("User-rejected changes.", char="-")
+    # For each rejected change, look for any module which has the suggested name.
+    # These might have been missed by Rope or might not be problems at all.
+    print("user rejected change sets", user_rejected_changes_sets)
+    for path, change_set in user_rejected_changes_sets:
+        for change in change_set:
+            for module_realpath in module_realpath_list:
+                if change[1] in final_names_sets[module_realpath]:
+                    print_color(Fore.YELLOW, "A name change from {0} name {1} was"
+                            " user-rejected for module\n    {2}\nbut the changed name"
+                            " {3} occurs in file\n    {4}".format(change[0], change[1],
+                                path, change[1], module_realpath))
+    print_banner("Rope-rejected changes.", char="-")
+    # TODO: Go over code above again, and extend to rope-rejected, too.
+    # Code above currently crashes.  Consider if there are more/better warnings easy to do.
 
 #
 # Process command-line arguments.
@@ -318,7 +368,7 @@ def get_function_parameter_names(initial_fun_string, initial_offset):
     fun_string = "".join(simplified_fun_list)
     #print("fun string after quashing is:", fun_string)
 
-    # Separate the arguments and call process_arg on them.
+    # Separate the arguments and call process_params on them.
     final_name_list = []
     while True:
         comma_index = fun_string.find(",", index)
@@ -420,14 +470,15 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
             upcoming = None
 
             try:
-                # TODO NOTE: Adding -10 below was needed to make the CURRENT fun name
-                # detected match the function and args returned below!  Otherwise,
-                # you always got a fun name, but got the string for the one that is
-                # ahead in text...  This also makes the offsets match better...
-                # NOTE that 4 is the minimum to make them match, and it also makes
-                # the offsets match the ones found below in "unidentified" section...
-                # But now it has some other weird problems...... keeps repeating
-                # certain ones.
+                # TODO NOTE: Adding -10 below was needed to make the CURRENT
+                # fun name detected match the function and args returned below!
+                # Otherwise, you always got a fun name, but got the string for
+                # the one that is ahead in text...  This also makes the offsets
+                # match better...
+                #
+                # NOTE that -4 is the minimum abs to make them match, and it makes
+                # the offsets exactly match the ones found below in
+                # "unidentified" section... but I do not know why this works.
                 fun_and_args = w.get_function_and_args_in_header(offset-4)
             except (ValueError, IndexError):
                 fun_and_args = None
@@ -461,28 +512,7 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
             """
 
         else:
-            #print("-----> unidentified:", word)
             unidentified_words.append([word, offset])
-            # Look for the function arguments anticipated in fun_args_watch_list.
-            #if fun_args_watch_list and word == fun_args_watch_list[0][0]:
-                # TODO Seems to work, but may mess up if a default value or
-                # type annotation contains a name that is the same as the
-                # variable it annotates.
-                # TODO TODO offsets do not match those calculated from parsing...
-                # currently using this code which mostly works, but would be better
-                # to use the above code to just calculate them and offsets and stick
-                # them in... but the offsets don't match. Consider:
-                #
-                #    WaterBug = 4
-                #    def dummy(EggSalad=WaterBug, WaterBug=4):
-                #        pass
-                #
-                # BUT, cannot have default def params before non-default ones...
-
-                #print("Matched loop pair", [word, offset], "with parsed", fun_args_watch_list[0])
-                #possible_changes.append([word, offset])
-                #possible_changes.append(fun_args_watch_list[0]) # causes errors in place of above
-                #del fun_args_watch_list[0]
 
         # Move the offset pointer ahead until the recognized word changes.
         break_outer = False
@@ -540,11 +570,9 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
     cookie) and then are deleted later."""
     # Example refactor at:
     #    https://github.com/python-rope/rope/blob/master/docs/library.rst
-
-    # NOTE alb, Rename(project, resource, offset), where project and offset
-    # are described below.  Offset is a character count into a resource,
-    # which seems to be a module.  Offset of None refers to the resource itself.
-
+    # NOTE: Rename(project, resource, offset), where project and offset are
+    # described below.  Offset is a character count into a resource, which in
+    # this case is a module.  Offset of None refers to the resource itself.
     if not possible_changes:
         return False
 
@@ -564,69 +592,82 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
             changed_resources = list(changes.get_changed_resources())
 
             # Calculate changed resources and possible warnings.
-            warning = False
+            warning = False # Could just use warning_modules list in place of boolean...
             warning_modules = []
-            print("Modules to possibly change are:")
+            modules_to_change_realpaths = []
+            modules_to_change_names = []
             for c in changed_resources:
                 #print("   Path of resource changed:", c.path)
                 #print("   Name of resource changed:", c.name)
                 #print("   Name of resource changed:", c.real_path)
-                print(" ", c.name)
-                if c.real_path not in original_names_sets:
-                    original_names_sets[c.real_path] = get_original_names_set(c.real_path)
+                modules_to_change_realpaths.append(c.real_path)
+                modules_to_change_names.append(c.name)
+                save_original_names_set(c.real_path)
                 if new_name in original_names_sets[c.real_path]:
                     warning = True
                     warning_modules.append(c.name)
                 modified_modules_set.add(c.real_path)
-            print()
 
             if warning:
-                print_color(Fore.RED, "Caution: The new name '{0}' already existed"
-                        "\nsomewhere in the module before this run of the program made"
+                print_color(Fore.YELLOW,
+                        "Caution: The new name '{0}' already existed somewhere"
+                        "\nin the selected modules before this run of the program made"
                         "\nany changes.  This may or may not cause a name collision."
                         "\nScoping was not taken into account in the analysis.\n"
-                        "\nModules with warnings are:"
+                        "\nThe modules it was found in are:"
                         .format(new_name))
                 for m in warning_modules:
-                    print_color(Fore.RED, "  ", m)
+                    print_color(Fore.YELLOW, "   ", m)
                 print()
 
-            # Colorize the description.
+            # Colorize the description and print it out for the user to view.
             color_new_name = color(Fore.GREEN, new_name)
             color_name = color(Fore.CYAN, name)
             change_string = change_string.replace(name, color_name)
             change_string = change_string.replace(new_name, color_new_name)
-            print("Changes are:\n", change_string)
+            print_color(blue_info_color, "Changes are:")
+            print("   ", change_string)
+            print_color(blue_info_color, "Modules which would be changed:")
+            for m in modules_to_change_names:
+                print("   ", m)
+            print()
 
             # Query the user.
+            print("warning bool is", warning)
             print_color(blue_info_color, "Do the changes? [ync] ", end="")
             yes_no = raw_input("").strip()
+            print("yes_no is", yes_no)
+            if not yes_no or yes_no not in "cyYnN": # Set default reply.
+                if warning: yes_no = "n"
+                else: yes_no = "y"
             if yes_no == "c":
                 print_color(blue_info_color, "Enter a different string: ", end="")
                 new_name = raw_input("")
                 print()
                 continue
-            elif yes_no in "yY" or (yes_no not in "nN" and not warning):
+            elif yes_no in "yY":
+                print("DOING CHANGES")
                 project.do(changes)
             else:
+                print("REJECTING CHANGES, putting in dummy")
                 skip_change = False
+                save_rejected_change(modules_to_change_realpaths, (name, new_name),
+                                     user=True)
                 changes = get_renaming_changes(project, module, offset,
                               create_rejected_change_preserve_name(name),
                               name, source_file_name)
                 if not changes:
                     skip_change = True
                     break
-                #changes = Rename(project, module, offset).get_changes(
-                #                 create_rejected_change_preserve_name(name),
-                #                 docs=False, unsure=None)
                 project.do(changes)
 
             break
-        if skip_change:
-            print("Rope cannot properly resolve the change, or some other Rope problem.")
+        if skip_change: # Changes skipped because Rope raised an exception.
+            print("Rope could not properly resolve the change, or some other Rope problem.")
             print("Skipping the change...\n")
             print_color(blue_info_color, "-" * banner_width)
             print()
+            save_rejected_change([source_file_name], (name, new_name), user=False)
             continue
         print()
         print_color(blue_info_color, "-" * banner_width)
@@ -641,7 +682,9 @@ def main():
     print("The default reply for queries (e.g. with enter) when no warning/caution"
           "\nis given is 'y', i.e, do the changes.  If a warning/caution is given then"
           "\nthe default reply is 'n'.")
-    print("\nEntering 'c' will query for a changed name string from the user.")
+    print("\nEntering 'c' will query for a changed name string from the user."
+          "\nIf the new name is not snake case you will then be queried about changing"
+          "\nit to snake case (which you can reject if that is what you want).")
 
     print("\nIt is safer to make all changes to a given package/module"
           " in the same run of\nthe program because warnings of"
@@ -673,7 +716,8 @@ def main():
     print()
 
     for filename in fname_list:
-        print_banner("Python module name: " + filename_to_module_name(filename), char="%")
+        print_banner("Python module name: " + filename_to_module_name(filename),
+                     char="%", big=True)
 
         print_banner("Changing variables assigned in the code.")
         while change_assigned_variables:
@@ -714,4 +758,5 @@ if __name__ == "__main__":
         print("\nProgram exited by keyboard interrupt.", file=sys.stdout)
     finally:
         remove_rejected_change_magic_cookies(modified_modules_set)
+        analyze_names_in_final_state(os.path.realpath(f) for f in fname_list)
 
