@@ -1,23 +1,64 @@
 #!/usr/bin/env python2
 """
 
-Refactoring tool to convert camel case to snake case in a Python program in
-conformity with the PEP-8 style guide.
+camel-snake-pep8
+===================
 
-Usage: camel_to_snake_pep8.py <packageOrProjectDir> <fileToModify> [<fileToModify> ...]
+A refactoring tool to help convert camel case to snake case in a Python
+program, in conformity with the PEP-8 style guide.
 
-For example, goto the main source directory (package root) and type:
-    camel_to_snake_pep8.py . *.py
-Be sure to include submodule Python files, too, if there are any submodules.
+Installing and using
+--------------------
 
-Note that Python-Rope only supports Python2 for now!  A port is said to be in
-progress...
+To install the program just clone or download the git repository then execute
+the main file, ``camel_snake_pep8.py``.  The program is currently a single
+module.
 
-Be careful and look at the changes carefully because Rope will happily rename a
-variable to a name that is already in use in the same scope.  For example, a
-function argument could be renamed to collide with a preexisting local variable
-inside the function.  Make a backup first, and maybe run unittests as the
-changes are made.
+Usage::
+
+   camel_snake_pep8.py <projectDir> <fileToModify> [<fileToModify> ...]
+
+For example, to change all the files in a project go to the main source
+directory (package root if a package) of the project to be refactored and
+type::
+
+    camel_snake_pep8.py . *.py
+
+Be sure to include any subpackage modules, too, if there are subpackages.
+
+How it works
+------------
+
+This program uses/abuses Python-Rope to detect variables to possibly change and
+to make any selected changes.  This program must be run with Python 2, since
+Python-Rope only supports Python2 as of Mar 2017.  A port is said to be in
+progress.
+
+The program cycles through each file, querying as to whether to keep or reject
+a proposed change.  The files are all re-processed each time, since offsets can
+change with each modification.  The running time is not bad for interactive
+use.
+
+Warnings and theory
+-------------------
+
+The program tries to make the refactoring as safe as possible, since bugs
+introduced by bad renaming can be difficult to find.  The real danger with
+renaming operations is name collisions.  Warnings are issued for possible
+situations which may lead to a collision (or may not, scoping is not taken into
+account).  The default query replies such as for just hitting "enter" each
+time are set to accept changes without warnings and reject changes with
+warnings.
+
+Collisions can occur because Rope will happily rename a variable to a name that
+is already in use in the same scope.  For example, a function argument could be
+renamed to collide with a preexisting local variable inside the function.  Make
+a backup first, and maybe run unittests as the changes are made.
+
+Many of the changes with warnings will also be safe, but before accepting them
+users should carefully inspect the changes (and possibly the files themselves)
+to be sure.  As an alternative, a slightly different snake case name can be
+tried by hitting ``c`` on the query.
 
 It is better to make all the changes in one run of the program, since the
 program collects all the existing names (per module) before starting in order
@@ -33,27 +74,23 @@ project (using the methods of the rope Project class and others).
 
 .. note::
 
-    Proof of reasonable safety for changes without warnings or user modifications
-    and assuming that Python-Rope does the replacement correctly for the scope, etc.
+    Proof of reasonable safety for changes without warnings and assuming that
+    Python-Rope does the replacement correctly.
 
     1. Camel case strings and snake case are disjoint sets of names.
 
     2. If no instances of the new snake case string exist in any file where
-    changes are made then all the corresponding camel case strings will be
-    converted to that value.  No name collisions can occur, and variables which
-    end up with the same name had the same name in the first place.
+    changes are made then all the corresponding camel case strings should be
+    converted to that value.  No name collisions can occur, and any variables
+    which end up with the same name had the same name in the first place.
 
     Of course since Python is dynamic and has introspection there will always
     be cases where the substitutions fail (such as modifying the globals dict).
-    But for most cases it should be safe.
 
-    Many of the changes with warnings will also be safe, but before accepting
-    them users should carefully inspect the changes (and possibly the files
-    themselves) to be sure.  As an alternative, a slightly different snake case
-    name can be tried by hitting ``c`` on the query.
-
-    Possible problems can also arise from cases where Rope cannot resolve a
-    name to change and the change is skipped.
+    Other possible problems can also arise from cases where Rope cannot resolve a
+    proposed change and so that change is skipped.  The program does an analysis
+    after all changes are made which looks for possible problems in that regard
+    and issues a warning if any are found.
 
 """
 
@@ -69,6 +106,7 @@ import rope
 import re
 import difflib
 import itertools
+from collections import defaultdict
 
 from rope.base.project import Project
 from rope.refactor.rename import Rename
@@ -81,67 +119,117 @@ change_function_and_method_keywords = True
 change_assigned_variables = True
 
 banner_width = 78
-blue_info_color = Fore.BLUE + Style.BRIGHT
+
+BLUE_INFO_COLOR = Fore.BLUE + Style.BRIGHT
+YELLOW_WARNING_COLOR = Fore.YELLOW
+RED_ERROR_COLOR = Fore.RED
+NEW_NAME_COLOR = Fore.GREEN
+CURR_NAME_COLOR = Fore.CYAN
+RESET = Style.RESET_ALL
 
 #
 # Dict for saving original names from files and related.
 #
 
-original_names_sets = {} # Original names in files, keyed by realpath to the files.
+original_change_sets_dict = {} # Original names in files, keyed by realpath to the files.
+final_names_sets_dict = {} # The final names in files, after all changes.
+
 modified_modules_set = set() # The realpaths of modified modules.
 
-def save_original_names_set(file_realpath, save_dict=original_names_sets):
-    """Get the names in the file and save in the `original_names_dict` by default."""
+def save_set_of_all_names_in_module(file_realpath, save_dict):
+    """Get the names in the file and save in the dict `save_dict` keyed by
+    the realpath."""
     names_in_module = rope_iterate_worder(file_realpath, unfiltered=True)
     name_set = set(c[0] for c in names_in_module)
-    if file_realpath not in original_names_sets:
+    if file_realpath not in save_dict:
         save_dict[file_realpath] = name_set
 
-user_rejected_changes_sets = {} # Changes rejected by the user.
-rope_rejected_changes_sets = {} # Changes rejected by rope.
+user_accepted_changes_sets_dict = defaultdict(set) # Changes accepted by the user.
+user_rejected_changes_sets_dict = defaultdict(set) # Changes rejected by the user.
+rope_rejected_changes_sets_dict = defaultdict(set) # Changes rejected by rope.
 
-def save_rejected_change(realpath_list, change, user=True):
-    """Save rejected changes and the corresponding module pathnames.  Offset
+def save_changes(realpath_list, change, user=True, accepted=True):
+    """Save one rejected change keyed by the corresponding module pathname.  Offset
     information is removed from the middle of any 3-tuple changes since it does
     not remain valid."""
     if len(change) > 2:
         change = (change[1], change[3])
     for path in realpath_list:
-        if user:
-            user_rejected_changes_sets[path] = change
+        if user and accepted:
+            user_accepted_changes_sets_dict[path].add(change)
+        elif user and not accepted:
+            user_rejected_changes_sets_dict[path].add(change)
         else:
-            rope_rejected_changes_sets[path] = change
+            rope_rejected_changes_sets_dict[path].add(change)
+
+def compare_changes_with_final_names(module_realpath_list, changes_dict, accepted=True):
+    """This routine does the real workn for `analyze_names_in_final_state`, looping
+    over the designated changes and modules."""
+    if accepted:
+        accept_or_reject_word = "Accepted"
+        accept_reject_warning = "   The original name before the change still appears in these modules:"
+    else:
+        accept_or_reject_word = "Rejected"
+        accept_reject_warning = "   The name suggested but rejected appears in these modules:"
+
+    for path, change_set in changes_dict.items():
+        print_warning("Warnings for module {0}".format(path), "\n")
+        for name, new_name in change_set:
+            found_file_paths = set()
+            for module_realpath in module_realpath_list:
+                final_names_set = final_names_sets_dict[module_realpath]
+                name_to_search_for = name if accepted else new_name
+                if name_to_search_for in final_names_set:
+                    found_file_paths.add(module_realpath)
+            if found_file_paths:
+                print("   {0} change: {1} to {2}.".format(
+                                      accept_or_reject_word,
+                                      CURR_NAME_COLOR + name + RESET,
+                                      NEW_NAME_COLOR + new_name + RESET))
+                print_warning(accept_reject_warning)
+                for fpath in sorted(found_file_paths):
+                    print("      ", fpath)
+                print()
 
 def analyze_names_in_final_state(module_realpath_list):
     """Analyze the final names in the each module originally passed into the program,
-    giving warnings about those which could potentially have problems."""
-    print_banner("Doing post-processing analysis on the names.", big=True)
-    final_names_sets = {}
-    for module_realpath in module_realpath_list:
-        save_original_names_set(module_realpath, save_dict=final_names_sets)
+    giving warnings about those which could potentially have problems.  This is run
+    after all changes have been made.
 
-    print_banner("User-rejected changes.", char="-")
-    # For each rejected change, look for any module which has the suggested name.
-    # These might have been missed by Rope or might not be problems at all.
-    print("user rejected change sets", user_rejected_changes_sets)
-    for path, change_set in user_rejected_changes_sets:
-        for change in change_set:
-            for module_realpath in module_realpath_list:
-                if change[1] in final_names_sets[module_realpath]:
-                    print_color(Fore.YELLOW, "A name change from {0} name {1} was"
-                            " user-rejected for module\n    {2}\nbut the changed name"
-                            " {3} occurs in file\n    {4}".format(change[0], change[1],
-                                path, change[1], module_realpath))
-    print_banner("Rope-rejected changes.", char="-")
-    # TODO: Go over code above again, and extend to rope-rejected, too.
-    # Code above currently crashes.  Consider if there are more/better warnings easy to do.
+    For each rejected change, look for any module which has the suggested name
+    that was rejected.  These might have been changed in one place and not
+    another, but not on purpose.  Vice versa for accepted changes."""
+
+    print_banner("Doing post-processing name analysis on all modules.", big=True)
+    # Get the final names from all the modules.
+    for module_realpath in module_realpath_list:
+        save_set_of_all_names_in_module(module_realpath, save_dict=final_names_sets_dict)
+
+    print_warning("Any warnings below are only for potential problems.  Most will probably"
+                  "\nnot be problems.  No scoping information is taken into account in"
+                  " this\nanalysis.\n")
+
+    print_banner("User-rejected change information.", char="-")
+    compare_changes_with_final_names(module_realpath_list,
+                                     user_rejected_changes_sets_dict,
+                                     accepted=False)
+
+    print_banner("Rope-rejected change information.", char="-")
+    compare_changes_with_final_names(module_realpath_list,
+                                     rope_rejected_changes_sets_dict,
+                                     accepted=False)
+
+    print_banner("Accepted change information.", char="-")
+    compare_changes_with_final_names(module_realpath_list,
+                                     user_accepted_changes_sets_dict,
+                                     accepted=True)
 
 #
 # Process command-line arguments.
 #
 
 if not len(sys.argv) >= 3:
-    print("Usage: camel_to_snake_pep8 <packageOrProjectDir> "
+    print("Usage: camel_snake_pep8 <packageOrProjectDir> "
                                       "<fileToModify> [<fileToModify> ...]",
           file=sys.stderr)
     sys.exit(1)
@@ -155,19 +243,6 @@ fname_list = sys.argv[2:]
 #
 # Temporary renaming for rejected changes.
 #
-
-# TODO: big problem with basic design here... it is almost impossible for a user
-# to reject a change!  Everything is re-calculated each time, after a refactor.
-# The offset may change, and the name may be accepted for change somewhere else!
-# But if we keep a LIST it should presumably encounter them in the same sequence
-# for each type of modification, since finding them is sequential.  But refactors
-# can change many things, such as the names and offsets and file locations...
-#
-# Only real solution: change to some magic name, such as append a weird string to
-# everything that should stay the same.  Then reject changes to those vars.  After,
-# you just go through everything (save all files which have been modified as in dict
-# for warnings) and remove that magic.  Note that these names also need to be UNIQUE,
-# so have a counter increment for each one and paste that on the end, too.
 
 REJECTED_CHANGE_MAGIC_COOKIE = "_XxX_CamelToSnake_PreserveName_XxX_"
 change_reject_counter = 0 # Make the temporary names unique.
@@ -217,7 +292,7 @@ def get_source_string(fname):
 
 def color(color, string):
     """Convert a string to a Colorama colorized string."""
-    return color + string + Style.RESET_ALL
+    return color + string + RESET
 
 def print_color(color, *args, **kwargs):
     """Like print, but with a color argument."""
@@ -225,11 +300,20 @@ def print_color(color, *args, **kwargs):
     kwargs2["end"] = ""
     print(color, sep="", end="")
     print(*args, **kwargs2)
-    print(Style.RESET_ALL, **kwargs)
+    print(RESET, **kwargs)
+
+def print_info(*args):
+    print_color(BLUE_INFO_COLOR, *args)
+
+def print_warning(*args):
+    print_color(YELLOW_WARNING_COLOR, *args)
+
+def print_error(*args):
+    print_color(RED_ERROR_COLOR, *args)
 
 def print_banner(text, big=False, char="="):
     """Print out the text in a banner."""
-    c = blue_info_color
+    c = BLUE_INFO_COLOR
     print_color(c, char * banner_width)
     if big: print_color(c, char * banner_width)
     print_color(c, char * 5, " ", text, " ", char * (banner_width - 7 - len(text)), sep="")
@@ -277,31 +361,6 @@ def unique_everseen(iterable, key=None):
 # Parsing function parameter strings to get parameters without default values.
 #
 
-import re, tokenize, keyword
-def is_identifier_or_keyword(string):
-    """Test whether `string` is a keyword or identifier."""
-    # http://stackoverflow.com/questions/2544972/
-    #return re.match(tokenize.Name + '$', string) and not keyword.iskeyword(string)
-    return re.match(tokenize.Name + '$', string)
-
-def get_identifier_at(source_string, offset):
-    """Get the identifier that starts at the given character offset in the
-    source string.  Only the beginning offset returns a non-empty string."""
-    substring = ""
-    curr_offset = offset
-    valid_id = False
-    while True:
-        test_substring = substring + source_string[curr_offset]
-        if is_identifier_or_keyword(test_substring):
-            valid_id = True
-            substring = test_substring
-            curr_offset += 1
-            continue
-        elif valid_id:
-            return test_substring
-        else:
-            return None
-
 def process_param(param, offset):
     """Process a single parameter produced by `get_function_parameter_names`."""
     #print("   arg being processed:", param, offset)
@@ -312,10 +371,10 @@ def process_param(param, offset):
         return []
 
     # Strip off any type annotation.
+    # TODO: below, splitting on : you need to take the left side not right!
     first_colon_index = param.find(":")
-    if first_colon_index >= 0:
-        offset += first_colon_index + 1
-        param = param[first_colon_index+1:]
+    if first_colon_index >= 0: # Variables are first in MyPy, reversed from C.
+        param = param[:first_colon_index]
 
     # Strip off beginning whitespace.
     first_non_whitespace_index = len(param) - len(param.lstrip())
@@ -326,7 +385,7 @@ def process_param(param, offset):
     #print("   returning arg:", param, offset)
     return [param, offset]
 
-def get_function_parameter_names(initial_fun_string, initial_offset):
+def get_function_param_names(initial_fun_string, initial_offset):
     """Parse a function string to get the parameter names which are
     not assigned default values (since those are taken care of in the
     variable-assignment group)."""
@@ -338,14 +397,14 @@ def get_function_parameter_names(initial_fun_string, initial_offset):
     #print("\ninitial fun string is:", fun_string)
     # Do some initial preprocessing.
     index = fun_string.find("(") + 1
-    fun_string = fun_string[index:].split("->")[0] # Remove fun name and return type.
+    fun_string = fun_string[index:].split("->")[0] # Remove name and return type.
+    fun_string = fun_string.rstrip()
     offset += index
     index = 0 # Keep a local index relative to first char of first arg.
-    fun_string = fun_string.rstrip()
     #print("fun string is:", fun_string)
 
     # Make into a list of characters.
-    close_paren_index = fun_string.rfind(")")
+    close_paren_index = fun_string.rfind(")") # Note we need rfind here.
     fun_string = fun_string[:close_paren_index+1]
     fun_list = [c for c in fun_string]
     assert fun_list[close_paren_index] == ")"
@@ -398,14 +457,6 @@ def get_function_parameter_names(initial_fun_string, initial_offset):
 # The Occurrence objects it returns (from generator) have an offset attribute.
 # Seems to just run filters on all the names (similar to what is below but
 # maybe higher level but maybe not exactly what I want).
-#
-# There are also the Rename and ChangeOccurrences classes, one of which will
-# be used.
-# https://github.com/python-rope/rope/blob/master/rope/refactor/rename.py
-
-# Test rename below works, and modifies the variables in file, but the offsets
-# become invalid after the changes!  So you'd need to re-read the file each
-# time.
 
 def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=False,
                         fun_keywords=False, assigned_vars=False, unfiltered=False):
@@ -433,7 +484,6 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
     w = worder.Worder(source_string)
 
     possible_changes = []
-    fun_args_watch_list = []
     unidentified_words = []
     upcoming = None
     offset = 0
@@ -442,14 +492,6 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
             word = w.get_word_at(offset)
         except (ValueError, IndexError):
             break
-
-        #print("word is:", word, "fun_args_watch_list is:", fun_args_watch_list)
-        #if fun_args_watch_list and word == fun_args_watch_list[0]:
-        #    print("Got a fun_args_watchlist match with:", word)
-        #    print("fun_args_watch_list is:", fun_args_watch_list)
-        #    del fun_args_watch_list[0]
-        #    if fun_arguments:
-        #        possible_changes.append([word, offset])
 
         if w.is_function_keyword_parameter(offset) and fun_keywords:
             possible_changes.append([word, offset])
@@ -484,32 +526,8 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
                 fun_and_args = None
             #print("Fun and args string from rope is:", fun_and_args)
             if fun_arguments:
-                fun_args_watch_list = get_function_parameter_names(fun_and_args, offset)
-                #print("args for fun", word, "are:", fun_args_watch_list)
-                possible_changes += fun_args_watch_list
-
-            #if fun_arguments:
-            #    for a in fun_args_watch_list:
-            #        possible_changes.append([word, offset])
-            #if original_name_set:
-            #    for a in fun_args_watch_list:
-            #        if not a in original_name_set:
-            #            print("Fun arg not found in orig:", a)
-
-            #print("fun_args_watch_list is:", fun_args_watch_list)
-
-            """
-            try:
-                fun_offset = w.find_function_offset(offset)
-                lparens, rparens = w.get_word_parens_range(fun_offset)
-            except (ValueError, IndexError):
-                pass # Doesn't always work...
-            arg_string = source_string[fun_offset:rparens + 1]
-            #print("arg string is", arg_string)
-            #print("Calculated offsets string from source is:", arg_string)
-            #params = w.get_parameters(fun_offset-1, rparens) # FAILS, tried guessing
-            #print("Params is:", params)
-            """
+                param_and_offset_list = get_function_param_names(fun_and_args, offset)
+                possible_changes += param_and_offset_list
 
         else:
             unidentified_words.append([word, offset])
@@ -551,7 +569,8 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
     return filtered_changes
 
 def get_renaming_changes(project, module, offset, new_name, name, source_file_name):
-    """Get the changes for doing a rename refactoring."""
+    """Get the changes for doing a rename refactoring.  If Rope raises a
+    `RefactoringError` it prints a warning and returns `None`."""
     try:
         changes = Rename(project, module, offset).get_changes(
                                        new_name, docs=True, unsure=None)
@@ -559,7 +578,6 @@ def get_renaming_changes(project, module, offset, new_name, name, source_file_na
     except rope.base.exceptions.RefactoringError:
         print("Error in performing a rename from '{0}' to '{1}' in file"
               "\n   {2}".format(name, new_name, source_file_name))
-        #raise
     return None
 
 def rope_rename_refactor(project, source_file_name, possible_changes):
@@ -580,7 +598,6 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
     module = project.find_module(module_name)
 
     for name, offset, new_name in possible_changes:
-        #print("DEBUG name, offset, new_name:", name, offset, new_name)
         while True:
             skip_change = False # Skip changes that rope simply cannot resolve.
             changes = get_renaming_changes(project, module, offset, new_name, name,
@@ -602,14 +619,14 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
                 #print("   Name of resource changed:", c.real_path)
                 modules_to_change_realpaths.append(c.real_path)
                 modules_to_change_names.append(c.name)
-                save_original_names_set(c.real_path)
-                if new_name in original_names_sets[c.real_path]:
+                save_set_of_all_names_in_module(c.real_path, save_dict=original_change_sets_dict)
+                if new_name in original_change_sets_dict[c.real_path]:
                     warning = True
                     warning_modules.append(c.name)
                 modified_modules_set.add(c.real_path)
 
             if warning:
-                print_color(Fore.YELLOW,
+                print_color(YELLOW_WARNING_COLOR,
                         "Caution: The new name '{0}' already existed somewhere"
                         "\nin the selected modules before this run of the program made"
                         "\nany changes.  This may or may not cause a name collision."
@@ -617,42 +634,40 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
                         "\nThe modules it was found in are:"
                         .format(new_name))
                 for m in warning_modules:
-                    print_color(Fore.YELLOW, "   ", m)
+                    print_color(YELLOW_WARNING_COLOR, "   ", m)
                 print()
 
             # Colorize the description and print it out for the user to view.
-            color_new_name = color(Fore.GREEN, new_name)
-            color_name = color(Fore.CYAN, name)
+            color_new_name = color(NEW_NAME_COLOR, new_name)
+            color_name = color(CURR_NAME_COLOR, name)
             change_string = change_string.replace(name, color_name)
             change_string = change_string.replace(new_name, color_new_name)
-            print_color(blue_info_color, "Changes are:")
+            print_color(BLUE_INFO_COLOR, "Changes are:")
             print("   ", change_string)
-            print_color(blue_info_color, "Modules which would be changed:")
+            print_color(BLUE_INFO_COLOR, "Modules which would be changed:")
             for m in modules_to_change_names:
                 print("   ", m)
             print()
 
             # Query the user.
-            print("warning bool is", warning)
-            print_color(blue_info_color, "Do the changes? [ync] ", end="")
+            print_color(BLUE_INFO_COLOR, "Do the changes? [ync] ", end="")
             yes_no = raw_input("").strip()
-            print("yes_no is", yes_no)
             if not yes_no or yes_no not in "cyYnN": # Set default reply.
                 if warning: yes_no = "n"
                 else: yes_no = "y"
             if yes_no == "c":
-                print_color(blue_info_color, "Enter a different string: ", end="")
+                print_color(BLUE_INFO_COLOR, "Enter a different string: ", end="")
                 new_name = raw_input("")
                 print()
                 continue
             elif yes_no in "yY":
-                print("DOING CHANGES")
+                save_changes(modules_to_change_realpaths, (name, new_name),
+                                                          user=True, accepted=True)
                 project.do(changes)
             else:
-                print("REJECTING CHANGES, putting in dummy")
                 skip_change = False
-                save_rejected_change(modules_to_change_realpaths, (name, new_name),
-                                     user=True)
+                save_changes(modules_to_change_realpaths, (name, new_name),
+                                                          user=True, accepted=False)
                 changes = get_renaming_changes(project, module, offset,
                               create_rejected_change_preserve_name(name),
                               name, source_file_name)
@@ -664,24 +679,28 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
             break
         if skip_change: # Changes skipped because Rope raised an exception.
             print("Rope could not properly resolve the change, or some other Rope problem.")
-            print("Skipping the change...\n")
-            print_color(blue_info_color, "-" * banner_width)
+            print("Rejecting the change...\n")
+            print_color(BLUE_INFO_COLOR, "-" * banner_width)
             print()
-            save_rejected_change([source_file_name], (name, new_name), user=False)
+            save_changes([source_file_name], (name, new_name), user=False, accepted=False)
             continue
         print()
-        print_color(blue_info_color, "-" * banner_width)
+        print_color(BLUE_INFO_COLOR, "-" * banner_width)
         print()
         return True
 
     return False
 
 def main():
-    print_banner("Running camel_to_snake_pep8.")
+    print_banner("Running camel_snake_pep8.")
+
+    print_warning("\nBe sure to make a backup copy of all files before running this"
+                  "\nprogram. All changes are made to the files in-place.\n")
 
     print("The default reply for queries (e.g. with enter) when no warning/caution"
           "\nis given is 'y', i.e, do the changes.  If a warning/caution is given then"
           "\nthe default reply is 'n'.")
+
     print("\nEntering 'c' will query for a changed name string from the user."
           "\nIf the new name is not snake case you will then be queried about changing"
           "\nit to snake case (which you can reject if that is what you want).")
@@ -699,7 +718,7 @@ def main():
     for f in fname_list:
         print("   ", f)
 
-    print_color(blue_info_color, "\nHit enter to begin the refactoring... ", end="")
+    print_color(BLUE_INFO_COLOR, "\nHit enter to begin the refactoring... ", end="")
     raw_input("")
     print()
 
@@ -709,10 +728,10 @@ def main():
     # Analyze the project.
     # Does this help refactoring?  See below for related discussion.
     # https://groups.google.com/forum/#!topic/rope-dev/1P8OADQ0DQ4
-    print_color(blue_info_color, "Analyzing all the modules in the project,"
+    print_color(BLUE_INFO_COLOR, "Analyzing all the modules in the project,"
                                                            " may be slow...")
     rope.base.libutils.analyze_modules(project) # Analyze all the modules.
-    print_color(blue_info_color, "Finished the analysis.", sep="")
+    print_color(BLUE_INFO_COLOR, "Finished the analysis.", sep="")
     print()
 
     for filename in fname_list:
@@ -722,21 +741,24 @@ def main():
         print_banner("Changing variables assigned in the code.")
         while change_assigned_variables:
             possible_changes = rope_iterate_worder(filename, assigned_vars=True)
-            if not possible_changes: print("No more variable assignment changes.\n")
+            if not possible_changes:
+                print("No more variable assignment changes.\n")
             if not rope_rename_refactor(project, filename, possible_changes):
                 break
 
         print_banner("Changing function arguments which do not have defaults.")
         while change_function_and_method_arguments:
             possible_changes = rope_iterate_worder(filename, fun_arguments=True)
-            if not possible_changes: print("No more function argument changes.\n")
+            if not possible_changes:
+                print("No more function argument changes.\n")
             if not rope_rename_refactor(project, filename, possible_changes):
                 break
 
         print_banner("Changing function and method names.")
         while change_function_and_method_names:
             possible_changes = rope_iterate_worder(filename, fun_name_defs=True)
-            if not possible_changes: print("No more function and method name changes.\n")
+            if not possible_changes:
+                print("No more function and method name changes.\n")
             if not rope_rename_refactor(project, filename, possible_changes):
                 break
 
@@ -744,7 +766,8 @@ def main():
             print_banner("Changing function and method keywords.")
             while change_function_and_method_keywords:
                 possible_changes = rope_iterate_worder(filename, fun_keywords=True)
-                if not possible_changes: print("No more function and method keyword changes.\n")
+                if not possible_changes:
+                    print("No more function and method keyword changes.\n")
                 if not rope_rename_refactor(project, filename, possible_changes):
                     break
 
@@ -758,5 +781,5 @@ if __name__ == "__main__":
         print("\nProgram exited by keyboard interrupt.", file=sys.stdout)
     finally:
         remove_rejected_change_magic_cookies(modified_modules_set)
-        analyze_names_in_final_state(os.path.realpath(f) for f in fname_list)
+        analyze_names_in_final_state([os.path.realpath(f) for f in fname_list])
 
