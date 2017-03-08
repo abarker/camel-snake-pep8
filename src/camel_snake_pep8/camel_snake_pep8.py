@@ -4,15 +4,16 @@
 camel-snake-pep8
 ===================
 
-A refactoring tool to help convert camel case to snake case in a Python
-program, in conformity with the PEP-8 style guide.
+A refactoring tool to help convert camel case to snake case and vice versa in a
+Python program, in conformity with the PEP-8 style guide.
 
 .. warning::
 
-   This program has various features to try to ensure that no errors are
-   introduced, but **use it at your own risk**.  Always make a backup copy of
-   any project before running this program on it.  The program has been used a
-   few times with good results, but does not currently have formal tests.
+   **Use this software at your own risk.**  This program has various features
+   to try to ensure that no errors are introduced, but correctness cannot be
+   guaranteed.  Always make a backup copy of any project before running this
+   program on it.  The program has been used a few times with good results, but
+   does not currently have formal tests.
 
 Installing and using
 --------------------
@@ -36,64 +37,67 @@ Be sure to include any subpackage modules, too, if there are subpackages.
 How it works
 ------------
 
-This program uses/abuses Python-Rope to detect variables to possibly change and
-to make any selected changes.  This program must be run with Python 2, since
-Python-Rope only supports Python2 as of Mar 2017.  A port is said to be in
-progress.
+This program uses/abuses Python-Rope to detect variables to possibly change.
+It then queries the user and makes any user-approved changes.  This program can
+be used to modify Python 2 or Python 3 code, but it must be run with Python 2
+(Python-Rope only supports Python2 as of Mar 2017; a port is said to be in
+progress.)
 
-The program cycles through each file, querying as to whether to keep or reject
-a proposed change.  The files are all re-processed each time, since offsets can
-change with each modification.  The running time is not bad for interactive
-use.
+The program cycles through each potential change in for each file specified,
+querying as to whether to keep or reject the proposed change.  The files and
+names are all re-processed each time, since offsets can change with each
+modification.  The running time is nevertheless not bad for interactive use.
 
 Warnings and theory
 -------------------
 
 The program tries to make the refactoring as safe as possible, since bugs
 introduced by bad renaming can be difficult to find.  The real danger with
-renaming operations is name collisions.  Warnings are issued for possible
-situations which may lead to a collision (or may not, scoping is not taken into
-account).  The default query replies such as for just hitting "enter" each
-time are set to accept changes without warnings and reject changes with
-warnings.
+renaming operations is name collisions.  Name collisions can occur because Rope
+will happily rename a variable to a name that is already in use in the same
+scope.  For example, a function parameter could be renamed to collide with a
+preexisting local variable inside the function.  Here is an example:
 
-Collisions can occur because Rope will happily rename a variable to a name that
-is already in use in the same scope.  For example, a function argument could be
-renamed to collide with a preexisting local variable inside the function.  Make
-a backup first, and maybe run unittests as the changes are made.
+code-block:: python
 
-Many of the changes with warnings will also be safe, but before accepting them
-users should carefully inspect the changes (and possibly the files themselves)
-to be sure.  As an alternative, a slightly different snake case name can be
-tried by hitting ``c`` on the query.
+   def f(camelArg):
+       camelArg = 555
+       camel_arg = 444
+       return camelArg
+
+If the change of the parameter ``camelArg`` to ``camel_arg`` is accepted
+(despite the warning) the new function will return 444, not 555.
+
+Warnings are issued for possible situations which may lead to a collision (or
+may not, since scoping is not taken into account).  The default query reply,
+such as when the user just hits "enter" each time, is set to accept the change
+when no warning is given and reject the change when a warning is given.  Many
+of the changes with warnings will actually be safe, but before accepting them
+users should carefully inspect the diffs for the change (and possibly the files
+themselves) to be sure.  As an alternative, a slightly different snake case
+name can be tried by hitting ``c`` in respose to the query.
 
 It is better to make all the changes in one run of the program, since the
 program collects all the existing names (per module) before starting in order
 to warn about possible collisions.
 
-Collision detection currently only gathers the preexisting names from the
-module being modified.  But changes might also be made in other modules when
-imports are done.  Collision detection could be even better if it determined
-which resources are involved in the change and then combined all those
-preexisting names for the preexisting name set to check against.  At the start
-of the program it could gather that information for each resource in the
-project (using the methods of the rope Project class and others).
-
 .. note::
 
-    "Proof" of reasonable safety for changes without warnings and assuming that
-    Python-Rope does the replacement correctly.
+    Rough "proof" of reasonable safety for changes without warnings and
+    assuming that Python-Rope does the name replacements correctly.
 
     1. Camel case strings and snake case are disjoint sets of names.
 
-    2. If no instances of the new snake case string exist in any file where
+    2. If no occurrences of the new snake case string exist in any file where
     changes are made then all the corresponding camel case strings should be
-    converted to that value.  No name collisions can occur because the new name
-    did not exist in the first place.  Any variables which end up with the same
-    name had the same name in the first place.
+    converted to that value.  (If the string does exist in one of those files a
+    warning will be given.)  No name collisions can occur because the new name
+    did not exist in any of those files in the first place.  Any variables
+    which end up with the same name had the same name in the first place.
 
     Of course since Python is dynamic and has introspection there will always
-    be cases where the substitutions fail (such as modifying the globals dict).
+    be cases where the rename substitutions fail (such as modifying the globals
+    dict).
 
     Other possible problems can arise from cases where Rope cannot resolve a
     proposed change and so that change is skipped even though it is
@@ -102,11 +106,6 @@ project (using the methods of the rope Project class and others).
     issued if any are found.
 
 """
-
-# TODO: This program could easily be modified to change module names to camel
-# case, too.  Currently module names are recognized in rope_iterate_worder, but
-# are simply ignored.  Could add a switch to get the class name changes (using
-# a snake to camel kind of routine).
 
 from __future__ import print_function, division
 import sys
@@ -481,12 +480,6 @@ def get_function_param_names(initial_fun_string, initial_offset):
 # Functions that do the real work.
 #
 
-# Consider also using the Finder object in
-# https://github.com/python-rope/rope/blob/master/rope/refactor/occurrences.py
-# The Occurrence objects it returns (from generator) have an offset attribute.
-# Seems to just run filters on all the names (similar to what is below but
-# maybe higher level but maybe not exactly what I want).
-
 def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=False,
                         fun_keywords=False, assigned_vars=False, class_names=False,
                         unfiltered=False):
@@ -542,7 +535,7 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
             upcoming = None
 
             try:
-                # TODO NOTE: Adding -10 below was needed to make the CURRENT
+                # TODO? NOTE: Adding -10 below was needed to make the CURRENT
                 # fun name detected match the function and args returned below!
                 # Otherwise, you always got a fun name, but got the string for
                 # the one that is ahead in text...  This also makes the offsets
@@ -550,7 +543,7 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
                 #
                 # NOTE that -4 is the minimum abs to make them match, and it makes
                 # the offsets exactly match the ones found below in
-                # "unidentified" section... but I do not know why this works.
+                # "unidentified" section... this works, but I do not know why.
                 fun_and_args = w.get_function_and_args_in_header(offset-4)
             except (ValueError, IndexError):
                 fun_and_args = None
