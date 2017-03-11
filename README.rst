@@ -8,7 +8,7 @@ Python-Rope to find and perform the changes.
 It does not do all the changes, but it does most of them.  (It currently does
 not recognize many tuple assignments.)
 
-   **Use this software at your own risk.**  This program has various features
+* **Use this software at your own risk.**  This program has various features
    to try to avoid introducing errors in renaming, but correctness cannot be
    guaranteed.  Always make a backup copy of any project before running this
    program on it.  The program has been used a few times with good results, but
@@ -16,7 +16,7 @@ not recognize many tuple assignments.)
 
    Rope is not perfect, so check your results and look at the warnings issued.
 
-   **Only tested on Ubuntu Linux.**  May or may not work on Windows.
+*  **Only tested on Ubuntu Linux.**  May or may not work on Windows.
 
 Installing and using
 --------------------
@@ -31,16 +31,6 @@ module.
 
 Usage::
 
-
-   This is just indented.
-   
-::
-   This is indented under colons.
-  
-      This is just indented.
-      
-   ::
-      This is indented under colons.
       camel_snake_pep8.py <projectDir> <fileToModify> [<fileToModify> ...]
 
 For example, to change all the files in a project go to the main source
@@ -136,7 +126,7 @@ be cautious the warnings should still be checked to see what is causing them.
 
     2.  If no occurrences of the new, proposed name exist in any file where changes
     are made then no warning will be given and all the instances of the old
-    names will be converted to the new one.  (If the string *does* exist in one
+    name will be converted to the new one.  (If the string *does* exist in one
     of those files a warning will be given.)  No name collisions can occur
     because the new name did not exist in any of those files in the first
     place.  Any variables which end up with the same name already had the same
