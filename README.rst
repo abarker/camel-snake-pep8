@@ -8,8 +8,6 @@ Python-Rope to find and perform the changes.
 It does not do all the changes, but it does most of them.  (It currently does
 not recognize many tuple assignments.)
 
-.. comment 
-
    **Use this software at your own risk.**  This program has various features
    to try to avoid introducing errors in renaming, but correctness cannot be
    guaranteed.  Always make a backup copy of any project before running this
@@ -128,12 +126,6 @@ for potential problems, and warnings are issued if any are found.  No scoping
 is taken into account so most of these warnings are probably false alarms.  To
 be cautious the warnings should still be checked to see what is causing them.
 
-   This is just indented.
-
-::
-   This is indented under colons.
-
-.. note::
 
     Rough "proof" of reasonable safety for changes without warnings and
     assuming that Python-Rope does the name replacements correctly (which
