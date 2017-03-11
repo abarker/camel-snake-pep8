@@ -34,9 +34,9 @@ Usage::
 
       python2 camel_snake_pep8.py <projectDir> <moduleToModify> [<moduleToModify> ...]
 
-The program can be used to refactor Python 2 or Python 3 code **but it must
-be run with Python 2**.  This is because, as of Mar. 2017, Python-Rope only
-supports Python 2 (a Python 3 version is said to be in progress).
+The program can be used to refactor either Python 2 or Python 3 code **but it
+must be run with Python 2**.  This is because, as of Mar. 2017, Python-Rope
+only supports Python 2 (a Python 3 version is said to be in progress).
 
 As an example, to change all the files in a project go to the main source
 directory of the project to be refactored (which is the package root if the
@@ -114,7 +114,7 @@ tried by hitting ``c`` in respose to the query.
 
 After all the changes are made the program does an analysis looking for
 potential problems, and warnings are issued for any that are found.  No scoping
-is taken into accounet so most of these warnings are probably false alarms.  To
+is taken into account so most of these warnings are probably false alarms.  To
 be cautious, though, the warnings should still be checked to see what is
 causing them.
 
