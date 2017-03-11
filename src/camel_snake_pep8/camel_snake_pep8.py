@@ -267,7 +267,6 @@ def filename_to_module_name(fname):
 
     abs_fname = os.path.realpath(fname)
     relpath = os.path.relpath(abs_fname, relative_dir)
-    #assert relpath[-3:] == ".py" # Not always true.
     relpath = relpath[:-3]
     module_name = relpath.replace(os.path.sep, ".")
     return module_name
@@ -512,7 +511,6 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
             break
 
     if unfiltered:
-        #return possible_changes
         return possible_changes + unidentified_words
 
     # Filter out the possible changes that are already in snake case, save new name.
@@ -529,7 +527,6 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
     # Remove duplicates and return.
     unique_changes_generator = unique_everseen(filtered_changes)
     filtered_changes = [c for c in unique_changes_generator]
-    #print("Deduped filtered changes:", filtered_changes)
     return filtered_changes
 
 def get_renaming_changes(project, module, offset, new_name, name, source_file_name,
