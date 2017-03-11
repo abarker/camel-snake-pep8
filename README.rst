@@ -8,7 +8,7 @@ Python-Rope to find and perform the changes.
 It does not do all the changes, but it does most of them.  (It currently does
 not recognize many tuple assignments.)
 
-.. warning::
+.. comment 
 
    **Use this software at your own risk.**  This program has various features
    to try to avoid introducing errors in renaming, but correctness cannot be
@@ -33,7 +33,17 @@ module.
 
 Usage::
 
-   camel_snake_pep8.py <projectDir> <fileToModify> [<fileToModify> ...]
+
+   This is just indented.
+   
+::
+   This is indented under colons.
+  
+      This is just indented.
+      
+   ::
+      This is indented under colons.
+      camel_snake_pep8.py <projectDir> <fileToModify> [<fileToModify> ...]
 
 For example, to change all the files in a project go to the main source
 directory of the project (the package root if the project is a package) to be
@@ -86,7 +96,7 @@ to a name that is already in use in the same scope.  For example, a function
 parameter could be renamed to collide with a preexisting local variable inside
 the function.  Here is an example:
 
-code-block:: python
+.. code:: python
 
    def f(camelArg):
        camelArg = 555
