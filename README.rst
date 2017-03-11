@@ -34,7 +34,7 @@ Usage::
 
       python2 camel_snake_pep8.py <projectDir> <moduleToModify> [<moduleToModify> ...]
 
-The program can be used to refactor Python 2 or Python 3 code, **but it must
+The program can be used to refactor Python 2 or Python 3 code **but it must
 be run with Python 2**.  This is because, as of Mar. 2017, Python-Rope only
 supports Python 2 (a Python 3 version is said to be in progress).
 
@@ -48,8 +48,8 @@ If the main Python file is made executable you can just type::
 
     camel_snake_pep8.py . *.py
 
-Be sure to include any subpackage modules, on the same line, if there are
-subpackages.
+Be sure to include any subpackage module to be modified, on the same line, if
+there are subpackages.
 
 The program can be stopped at any time with ``^C``.  It is better to make all
 the changes in one run of the program, though, since the program collects all
@@ -77,8 +77,8 @@ Warnings and theory
 -------------------
 
 The program tries to make the refactoring as safe as possible, since bugs
-introduced by bad renaming can be difficult to find.  The real danger with
-renaming operations is name collisions.
+introduced by bad renaming can be difficult to find.  One of the main dangers
+with renaming operations is name collisions.
 
 One type of name collision occurs because Rope will happily rename a variable
 to a name that is already in use in the same scope.  For example, a function
@@ -93,30 +93,30 @@ the function.  Here is an example:
        return camelArg
 
 If the change of the parameter ``camelArg`` to ``camel_arg`` is accepted
-(despite the warning) the new function will return 444, not 555.  The
-camel-snake-pep8 program will issue a warning since the new name previously
-existed in the module before any changes were made (i.e, before any changes by
-the current run of the program).
+(despite the warning) the new function will return 444 instead of the previous
+value 555.  The camel-snake-pep8 program will issue a warning since the new
+name previously existed in the module before any changes were made (i.e, before
+any changes by the current run of the program).
 
 Another type of name collision is when the renaming itself causes two distinct
-names like ``myVar`` and ``myVAR`` to map to a common new name.  In this case,
-a warning is given if a name change that was already accepted (on this run of
-the program) mapped a different name to that same new name.
+names like ``myVar`` and ``myVAR`` to map to a common new name ``my_var``.  In
+this case, a warning is given if a name change that was already accepted (on
+this run of the program) mapped a different name to that same new name.
 
-Warnings are issued for possible situations which may lead to a collision --- or
+Warnings are issued for possible situations which may lead to a collision -- or
 may not, since scoping is not taken into account.  The default query reply,
 such as when the user just hits "enter" each time, is to accept the change when
 no warning is given and reject the change when a warning is given.  Many of the
-changes with warnings will actually be safe, but before accepting them users
-should carefully inspect the diffs for the change (and possibly the files
-themselves) to be sure.  As an alternative, a slightly different snake case
-name can be tried by hitting ``c`` in respose to the query.
+changes with warnings will actually be safe, but before accepting one the diffs
+for the change (and possibly the files themselves) should be carefully
+inspected to be sure.  As an alternative, a different name entirely can be
+tried by hitting ``c`` in respose to the query.
 
-The program also does an analysis after all the changes are made which looks
-for potential problems, and warnings are issued if any are found.  No scoping
-is taken into account so most of these warnings are probably false alarms.  To
-be cautious the warnings should still be checked to see what is causing them.
-
+After all the changes are made the program does an analysis looking for
+potential problems, and warnings are issued for any that are found.  No scoping
+is taken into accounet so most of these warnings are probably false alarms.  To
+be cautious, though, the warnings should still be checked to see what is
+causing them.
 
     Rough "proof" of reasonable safety for changes without warnings and
     assuming that Python-Rope does the name replacements correctly (which
