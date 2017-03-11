@@ -3,7 +3,9 @@ camel-snake-pep8
 
 A refactoring tool to help convert camel case to snake case and vice versa in a
 Python program, in conformity with the PEP-8 style guide.  It uses/abuses
-Python-Rope to find and perform the changes.
+Python-Rope to find and perform the changes.  The program interactively
+displays proposed changes and queries the user as to whether or not to accept
+the changes.
 
 It does not do all the changes, but it does most of them.  (It currently does
 not recognize many tuple assignments.)
@@ -107,10 +109,10 @@ Warnings are issued for possible situations which may lead to a collision -- or
 may not, since scoping is not taken into account.  The default query reply,
 such as when the user just hits "enter" each time, is to accept the change when
 no warning is given and reject the change when a warning is given.  Many of the
-changes with warnings will actually be safe, but before accepting one the diffs
-for the change (and possibly the files themselves) should be carefully
-inspected to be sure.  As an alternative, a different name entirely can be
-tried by hitting ``c`` in respose to the query.
+changes with warnings will actually be safe, but before accepting one the
+displayed diffs for the change (and possibly the files themselves) should be
+carefully inspected to be sure.  As an alternative, a different name entirely
+can be tried by hitting ``c`` in respose to the query.
 
 After all the changes are made the program does an analysis looking for
 potential problems, and warnings are issued for any that are found.  No scoping
