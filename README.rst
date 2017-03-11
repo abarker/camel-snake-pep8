@@ -3,7 +3,10 @@ camel-snake-pep8
 
 A refactoring tool to help convert camel case to snake case and vice versa in a
 Python program, in conformity with the PEP-8 style guide.  It uses/abuses
-Python-Rope to do find and perform the changes.
+Python-Rope to find and perform the changes.
+
+It does not do all the changes, but it does most of them.  (It currently does
+not recognize many tuple assignments.)
 
 .. warning::
 
@@ -12,6 +15,8 @@ Python-Rope to do find and perform the changes.
    guaranteed.  Always make a backup copy of any project before running this
    program on it.  The program has been used a few times with good results, but
    does not currently have formal tests.
+
+   Rope is not perfect, so check your results and look at the warnings issued.
 
 Installing and using
 --------------------
@@ -111,7 +116,8 @@ is taken into account so most of these warnings are probably false alarms.
 .. note::
 
     Rough "proof" of reasonable safety for changes without warnings and
-    assuming that Python-Rope does the name replacements correctly.
+    assuming that Python-Rope does the name replacements correctly (which
+    it doesn't always do, especially class attributes it cannot resolve).
 
     1.  The camel case strings that this program would change without a warning
     to snake case strings are disjoint sets of names.
@@ -128,7 +134,7 @@ is taken into account so most of these warnings are probably false alarms.
     be cases where the rename substitutions fail (such as modifying the globals
     dict).
 
-    Other possible problems could arise from cases where Rope cannot resolve a
+    Other possible problems can arise from cases where Rope cannot resolve a
     proposed change and so that change is skipped even though it is
     semantically necessary.
     

@@ -17,17 +17,20 @@ Currently only runs on Python 2, but can refactor Python 2 and Python 3.
 
 """
 
+# Note: Someone who knows rope better might have a better way to get all the
+# names and offsets from the files, and perhaps take scoping into account on
+# the warnings.
+
 from __future__ import print_function, division
 import sys
 import os
-import rope
 import re
-import difflib
 import itertools
 from collections import defaultdict
 
+import rope
 from rope.base.project import Project
-from rope.base.libutils import get_string_scope, get_string_module # Experiment with.
+from rope.base.libutils import get_string_scope, get_string_module # Not currently used.
 from rope.refactor.rename import Rename
 from rope.base import worder
 from colorama import Fore, Back, Style
@@ -38,7 +41,7 @@ change_function_and_method_keywords = True
 change_assigned_variables = True
 change_class_names = True
 
-banner_width = 78
+BANNER_WIDTH = 78
 
 BLUE_INFO_COLOR = Fore.BLUE + Style.BRIGHT
 YELLOW_WARNING_COLOR = Fore.YELLOW
@@ -47,22 +50,7 @@ NEW_NAME_COLOR = Fore.GREEN
 CURR_NAME_COLOR = Fore.CYAN
 RESET = Style.RESET_ALL
 
-#
-# Process command-line arguments.
-#
-
-if not len(sys.argv) >= 3:
-    print("Usage: camel_snake_pep8 <packageOrProjectDir> "
-                                      "<fileToModify> [<fileToModify> ...]",
-          file=sys.stderr)
-    sys.exit(1)
-
-project_dir = sys.argv[1]
-project_dir_realpath = os.path.realpath(project_dir)
-project_is_package = False
-if os.path.exists(os.path.join(project_dir, "__init__.py")):
-    project_is_package = True
-fname_list = sys.argv[2:]
+REJECTED_CHANGE_MAGIC_COOKIE = "_XxX_CamelSnakePep8_PreserveName_XxX_"
 
 #
 # Dicts and sets for saving names from files and related functions.
@@ -173,7 +161,6 @@ def analyze_names_in_final_state(module_realpath_list):
 # Temporary renaming for rejected changes.
 #
 
-REJECTED_CHANGE_MAGIC_COOKIE = "_XxX_CamelToSnake_PreserveName_XxX_"
 change_reject_counter = 0 # Make the temporary names unique.
 
 def create_rejected_change_preserve_name(name):
@@ -241,23 +228,23 @@ def print_color(color, *args, **kwargs):
     print(*args, **kwargs2)
     print(RESET, **kwargs)
 
-def print_info(*args):
-    print_color(BLUE_INFO_COLOR, *args)
+def print_info(*args, **kwargs):
+    print_color(BLUE_INFO_COLOR, *args, **kwargs)
 
-def print_warning(*args):
-    print_color(YELLOW_WARNING_COLOR, *args)
+def print_warning(*args, **kwargs):
+    print_color(YELLOW_WARNING_COLOR, *args, **kwargs)
 
-def print_error(*args):
-    print_color(RED_ERROR_COLOR, *args)
+def print_error(*args, **kwargs):
+    print_color(RED_ERROR_COLOR, *args, **kwargs)
 
 def print_banner(text, big=False, char="="):
     """Print out the text in a banner."""
     c = BLUE_INFO_COLOR
-    print_color(c, char * banner_width)
-    if big: print_color(c, char * banner_width)
-    print_color(c, char * 5, " ", text, " ", char * (banner_width - 7 - len(text)), sep="")
-    print_color(c, char * banner_width)
-    if big: print_color(c, char * banner_width)
+    print_color(c, char * BANNER_WIDTH)
+    if big: print_color(c, char * BANNER_WIDTH)
+    print_color(c, char * 5, " ", text, " ", char * (BANNER_WIDTH - 7 - len(text)), sep="")
+    print_color(c, char * BANNER_WIDTH)
+    if big: print_color(c, char * BANNER_WIDTH)
     print()
 
 def filename_to_module_name(fname):
@@ -275,7 +262,7 @@ def filename_to_module_name(fname):
 
     abs_fname = os.path.realpath(fname)
     relpath = os.path.relpath(abs_fname, relative_dir)
-    assert relpath[-3:] == ".py"
+    #assert relpath[-3:] == ".py" # Not always true.
     relpath = relpath[:-3]
     module_name = relpath.replace(os.path.sep, ".")
     return module_name
@@ -389,7 +376,7 @@ def get_function_param_names(initial_fun_string, initial_offset, fun_name_string
 #
 
 def experiment_with_scoping_classes(project, source_file_name):
-    """Just for experimenting with `PyObject` and `Scope` objects."""
+    """This is not used; just for experimenting with `PyObject` and `Scope` objects."""
     def dir_no_magic(obj):
         return [s for s in dir(obj) if s[:2] != "__"]
 
@@ -453,11 +440,18 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
         elif w.is_assigned_here(offset) and assigned_vars:
             possible_changes.append([word, offset, camel_to_snake(word)])
 
+        elif word == "for":
+            upcoming = "for"
+
         elif word == "def":
             upcoming = "def"
 
         elif word == "class":
             upcoming = "class"
+
+        elif upcoming == "for" and assigned_vars:
+            possible_changes.append([word, offset, camel_to_snake(word)])
+            upcoming = None
 
         elif upcoming == "def" and w.is_a_class_or_function_name_in_header(offset):
             if fun_name_defs:
@@ -531,19 +525,20 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
     #print("Deduped filtered changes:", filtered_changes)
     return filtered_changes
 
-def get_renaming_changes(project, module, offset, new_name, name, source_file_name):
+def get_renaming_changes(project, module, offset, new_name, name, source_file_name,
+                         docs=True):
     """Get the changes for doing a rename refactoring.  If Rope raises a
     `RefactoringError` it prints a warning and returns `None`."""
     try:
         changes = Rename(project, module, offset).get_changes(
-                                       new_name, docs=True, unsure=None)
+                                       new_name, docs=docs, unsure=None)
         return changes
     except rope.base.exceptions.RefactoringError:
         print("Error in calculating a rename from '{0}' to '{1}' in file"
               "\n   {2}".format(name, new_name, source_file_name))
     return None
 
-def rope_rename_refactor(project, source_file_name, possible_changes):
+def rope_rename_refactor(project, source_file_name, possible_changes, docs=True):
     """Query the user about changes to make.  Do at most one change (since all
     the possible change offsets are generated again after a change).  If a
     change is done return true, otherwise if there are no changes to make
@@ -564,7 +559,7 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
         while True:
             skip_change = False # Skip changes that rope simply cannot resolve.
             changes = get_renaming_changes(project, module, offset, new_name, name,
-                                           source_file_name)
+                                           source_file_name, docs=docs)
             if not changes:
                 skip_change = True
                 break
@@ -593,10 +588,12 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
                 modified_modules_set.add(c.real_path)
 
                 # Warning for name collision with previous change.
-                for accepted_name, accepted_new_name in user_accepted_changes_sets_dict[c.real_path]:
+                for accepted_name, accepted_new_name in \
+                                          user_accepted_changes_sets_dict[c.real_path]:
                     if new_name == accepted_new_name and accepted_name != name:
                         warning = True
-                        conversion_collisions.append([c.name, accepted_name, accepted_new_name])
+                        conversion_collisions.append(
+                                          [c.name, accepted_name, accepted_new_name])
 
             # Colorize the description and print it out for the user to view.
             color_new_name = color(NEW_NAME_COLOR, new_name)
@@ -636,9 +633,9 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
                 print()
 
             # Query the user.
-            print_color(BLUE_INFO_COLOR, "Do the changes? [ync] ", end="")
+            print_color(BLUE_INFO_COLOR, "Do the changes? [yncd] ", end="")
             yes_no = raw_input("").strip()
-            if not yes_no or yes_no not in "cyYnN": # Set default reply.
+            if not yes_no or yes_no not in "dcyYnN": # Set default reply.
                 if warning: yes_no = "n"
                 else: yes_no = "y"
             if yes_no == "c":
@@ -646,17 +643,24 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
                 new_name = raw_input("")
                 print()
                 continue
+            if yes_no == "d":
+                print_color(BLUE_INFO_COLOR,
+                        "\nTemporarily toggling the docs setting to {0} for this change."
+                        .format(not docs))
+                docs = not docs
+                continue
             elif yes_no in "yY":
                 save_changes(modules_to_change_realpaths, (name, new_name),
                                                           user=True, accepted=True)
                 project.do(changes)
             else:
+                # Do not do the change; rename to a temp name to preserve old name.
                 skip_change = False
                 save_changes(modules_to_change_realpaths, (name, new_name),
                                                           user=True, accepted=False)
                 changes = get_renaming_changes(project, module, offset,
                               create_rejected_change_preserve_name(name),
-                              name, source_file_name)
+                              name, source_file_name, docs=False)
                 if not changes:
                     skip_change = True
                     break
@@ -666,16 +670,41 @@ def rope_rename_refactor(project, source_file_name, possible_changes):
         if skip_change: # Changes skipped because Rope raised an exception.
             print("Rope could not properly resolve the change, or some other Rope problem.")
             print("Rejecting the change...\n")
-            print_color(BLUE_INFO_COLOR, "-" * banner_width)
+            print_color(BLUE_INFO_COLOR, "-" * BANNER_WIDTH)
             print()
             save_changes([source_file_name], (name, new_name), user=False, accepted=False)
             continue
         print()
-        print_color(BLUE_INFO_COLOR, "-" * banner_width)
+        print_color(BLUE_INFO_COLOR, "-" * BANNER_WIDTH)
         print()
         return True
 
     return False
+
+#
+# Process command-line arguments.
+#
+
+if not len(sys.argv) >= 3:
+    print("Usage: camel_snake_pep8 <packageOrProjectDir> "
+                                      "<fileToModify> [<fileToModify> ...]",
+          file=sys.stderr)
+    sys.exit(1)
+
+project_dir = sys.argv[1]
+project_dir_realpath = os.path.realpath(project_dir)
+if not os.path.isdir(project_dir_realpath):
+    print_error("Error: First argument is not a directory.")
+    sys.exit(1)
+project_is_package = False
+if os.path.exists(os.path.join(project_dir, "__init__.py")):
+    project_is_package = True
+fname_list = sys.argv[2:]
+for f in fname_list:
+    if not f[-3:] == ".py":
+        print_warning("Warning: All arguments after the first must end in '.py' (or"
+                      "\nRope will have problems).  This file did not:\n   ", f)
+        sys.exit(1)
 
 def main():
     print_banner("Running camel_snake_pep8.")
@@ -688,8 +717,8 @@ def main():
           "\nthe default reply is 'n'.")
 
     print("\nEntering 'c' will query for a changed name string from the user."
-          "\nIf the new name is not snake case you will then be queried about changing"
-          "\nit to snake case (which you can reject if that is what you want).")
+          "\nIf the new name is still not the proper form you will then be queried"
+          "\nagain about changing it (which you can say no to if it is what you want).")
 
     print("\nIt is safer to make all changes to a given package/module"
           " in the same run of\nthe program because warnings of"
@@ -699,6 +728,20 @@ def main():
         print("\nThe project is detected as a Python package.")
     else:
         print("\nThe project is detected to not be a Python package.")
+
+    print("\nModifying the docs changes the names in strings, too.  This is convenient,"
+          "\nbut things like dict keys will also be changed.  If you choose to modify"
+          "\ndocs you can still select 'd' on viewing individual changes to toggle the"
+          "\nsetting off temporarily.")
+
+    print_info("\nModify docs (default is 'n')? ", end="")
+    docs = raw_input("")
+    if docs and docs in "yY":
+        print("\nModifying the docs by default.")
+        docs = True
+    else:
+        print("\nNot modifying the docs by default.")
+        docs = False
 
     print("\nConverting these files:")
     for f in fname_list:
@@ -721,7 +764,7 @@ def main():
     print()
 
     for filename in fname_list:
-        experiment_with_scoping_classes(project, filename)
+        #experiment_with_scoping_classes(project, filename)
         print_banner("Python module name: " + filename_to_module_name(filename),
                      char="%", big=True)
 
@@ -730,7 +773,7 @@ def main():
             possible_changes = rope_iterate_worder(filename, assigned_vars=True)
             if not possible_changes:
                 print("No more variable assignment changes.\n")
-            if not rope_rename_refactor(project, filename, possible_changes):
+            if not rope_rename_refactor(project, filename, possible_changes, docs=docs):
                 break
 
         print_banner("Changing function arguments which do not have defaults.")
@@ -738,7 +781,7 @@ def main():
             possible_changes = rope_iterate_worder(filename, fun_arguments=True)
             if not possible_changes:
                 print("No more function argument changes.\n")
-            if not rope_rename_refactor(project, filename, possible_changes):
+            if not rope_rename_refactor(project, filename, possible_changes, docs=docs):
                 break
 
         print_banner("Changing function and method names.")
@@ -746,7 +789,7 @@ def main():
             possible_changes = rope_iterate_worder(filename, fun_name_defs=True)
             if not possible_changes:
                 print("No more function and method name changes.\n")
-            if not rope_rename_refactor(project, filename, possible_changes):
+            if not rope_rename_refactor(project, filename, possible_changes, docs=docs):
                 break
 
         if not change_assigned_variables: # Redundant when that is also selected.
@@ -755,7 +798,7 @@ def main():
                 possible_changes = rope_iterate_worder(filename, fun_keywords=True)
                 if not possible_changes:
                     print("No more function and method keyword changes.\n")
-                if not rope_rename_refactor(project, filename, possible_changes):
+                if not rope_rename_refactor(project, filename, possible_changes, docs=docs):
                     break
 
         print_banner("Changing class names.")
@@ -763,7 +806,7 @@ def main():
             possible_changes = rope_iterate_worder(filename, class_names=True)
             if not possible_changes:
                 print("No more class name changes.\n")
-            if not rope_rename_refactor(project, filename, possible_changes):
+            if not rope_rename_refactor(project, filename, possible_changes, docs=docs):
                 break
 
     project.close()

@@ -30,3 +30,23 @@ def fF(aA, a, bB, b, cC, c, dD=3, d=a_a): # Test short names and rename to globa
 myVar = 5
 myVAR = 44
 
+#
+# Test changing a for-loop variable.
+#
+
+for camelVar in range(3):
+    pass
+
+for camelCount, camelVar in enumerate(range(3)):
+    pass
+
+#
+# Test modifying docs.
+#
+
+class snake_name(object):
+    """This is a class that uses `snake_name` as its name to test when `snake_name`
+    will be modified by Rope with docs set to change or not."""
+    d = {}
+    d["snake_name"] = "snake_name" # Danger of using docs modifications!
+
