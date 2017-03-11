@@ -50,3 +50,11 @@ class snake_name(object):
     d = {}
     d["snake_name"] = "snake_name" # Danger of using docs modifications!
 
+#
+# Test multiple assignment.
+#
+
+xX, yY, zZ = 1, 2, 3 # Only the last one, zZ, is modified.
+
+yY = 100 # This change does not cause a problem, though, since Rope also gets above yY.
+

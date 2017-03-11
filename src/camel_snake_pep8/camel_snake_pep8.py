@@ -17,7 +17,7 @@ Currently only runs on Python 2, but can refactor Python 2 and Python 3.
 
 """
 
-# Note: Someone who knows rope better might have a better way to get all the
+# NOTE: Someone who knows rope better might have a better way to get all the
 # names and offsets from the files, and perhaps take scoping into account on
 # the warnings.
 
@@ -52,6 +52,8 @@ RESET = Style.RESET_ALL
 
 REJECTED_CHANGE_MAGIC_COOKIE = "_XxX_CamelSnakePep8_PreserveName_XxX_"
 
+SOA_FOLLOWED_CALLS = 1 # Depth of calls in Rope static analysis (Rope default is 1).
+
 #
 # Dicts and sets for saving names from files and related functions.
 #
@@ -59,7 +61,7 @@ REJECTED_CHANGE_MAGIC_COOKIE = "_XxX_CamelSnakePep8_PreserveName_XxX_"
 original_names_sets_dict = {} # Original names in files, keyed by realpath to the files.
 final_names_sets_dict = {} # The final names in files, after all changes.
 
-modified_modules_set = set() # The realpaths of modified modules.
+modified_modules_set = set() # Set containing the realpaths of modified modules.
 
 def save_set_of_all_names_in_module(file_realpath, save_dict):
     """Get the names in the file and save in the dict `save_dict` keyed by
@@ -241,16 +243,19 @@ def print_banner(text, big=False, char="="):
     """Print out the text in a banner."""
     c = BLUE_INFO_COLOR
     print_color(c, char * BANNER_WIDTH)
-    if big: print_color(c, char * BANNER_WIDTH)
-    print_color(c, char * 5, " ", text, " ", char * (BANNER_WIDTH - 7 - len(text)), sep="")
+    if big:
+        print_color(c, char * BANNER_WIDTH)
+    print_color(c, char * 5, " ", text, " ",
+                char * (BANNER_WIDTH - 7 - len(text)), sep="")
     print_color(c, char * BANNER_WIDTH)
-    if big: print_color(c, char * BANNER_WIDTH)
+    if big:
+        print_color(c, char * BANNER_WIDTH)
     print()
 
 def filename_to_module_name(fname):
     """Return the module name from a filename.  Not fully qualified with the
     package root name, though."""
-    # The commented-out code below gives correct dotted module paths, but rope
+    # The commented-out code below gives correct dotted module paths, but Rope
     # doesn't return the full changes description for that like it does when
     # when passed the shorter module path name (leaving off the root).
     #
@@ -387,7 +392,8 @@ def experiment_with_scoping_classes(project, source_file_name):
     print("\nGot a Worder.  The dir is", dir_no_magic(w))
 
     # Get a PyObject for the code.
-    py_object = get_string_module(project, source_string, resource=None, force_errors=False)
+    py_object = get_string_module(project, source_string, resource=None,
+                                  force_errors=False)
     print("\nGot a PyObject.  The dir is", dir_no_magic(py_object))
 
     # Get a Scope object for the code.
@@ -437,7 +443,8 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
         if w.is_function_keyword_parameter(offset) and fun_keywords:
             possible_changes.append([word, offset, camel_to_snake(word)])
 
-        elif w.is_assigned_here(offset) and assigned_vars:
+        elif (w.is_assigned_here(offset) or w.is_assigned_in_a_tuple_assignment(offset)
+                ) and assigned_vars: # Tuple is check probably redundant; doesn't work.
             possible_changes.append([word, offset, camel_to_snake(word)])
 
         elif word == "for":
@@ -567,7 +574,7 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
             changed_resources = list(changes.get_changed_resources())
 
             # Calculate changed resources and possible warnings.
-            warning = False # Could just use warning_modules list in place of boolean...
+            warning = False
             existing_name_modules = []
             conversion_collisions = []
             modules_to_change_realpaths = []
@@ -600,9 +607,10 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
             color_name = color(CURR_NAME_COLOR, name)
             change_string = change_string.replace(name, color_name)
             change_string = change_string.replace(new_name, color_new_name)
-            print_color(BLUE_INFO_COLOR, "Changes are:")
+            # TODO, maybe: Could also remove any REJECTED_CHANGE_MAGIC_COOKIE strings.
+            print_info("Changes are:")
             print("   ", change_string)
-            print_color(BLUE_INFO_COLOR, "Modules which would be changed:")
+            print_info("Modules which would be changed:")
             for m in modules_to_change_names:
                 print("   ", m)
             print()
@@ -633,20 +641,22 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
                 print()
 
             # Query the user.
-            print_color(BLUE_INFO_COLOR, "Do the changes? [yncd] ", end="")
+            print_info("Do the changes? [yncd] ", end="")
             yes_no = raw_input("").strip()
             if not yes_no or yes_no not in "dcyYnN": # Set default reply.
                 if warning: yes_no = "n"
                 else: yes_no = "y"
             if yes_no == "c":
-                print_color(BLUE_INFO_COLOR, "Enter a different string: ", end="")
+                print_info("\n", "-" * BANNER_WIDTH, "\n", sep="")
+                print_info("Enter a different string: ", end="")
                 new_name = raw_input("")
                 print()
                 continue
             if yes_no == "d":
-                print_color(BLUE_INFO_COLOR,
-                        "\nTemporarily toggling the docs setting to {0} for this change."
-                        .format(not docs))
+                print_info("\n", "-" * BANNER_WIDTH, "\n", sep="")
+                print_info(
+                      "Temporarily toggling the docs setting to {0} for this change.\n"
+                      .format(not docs))
                 docs = not docs
                 continue
             elif yes_no in "yY":
@@ -670,12 +680,12 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
         if skip_change: # Changes skipped because Rope raised an exception.
             print("Rope could not properly resolve the change, or some other Rope problem.")
             print("Rejecting the change...\n")
-            print_color(BLUE_INFO_COLOR, "-" * BANNER_WIDTH)
+            print_info("-" * BANNER_WIDTH)
             print()
             save_changes([source_file_name], (name, new_name), user=False, accepted=False)
             continue
         print()
-        print_color(BLUE_INFO_COLOR, "-" * BANNER_WIDTH)
+        print_info("-" * BANNER_WIDTH)
         print()
         return True
 
@@ -707,6 +717,8 @@ for f in fname_list:
         sys.exit(1)
 
 def main():
+    """Run the program."""
+
     print_banner("Running camel_snake_pep8.")
 
     print_warning("Be sure to make a backup copy of all files before running this"
@@ -747,20 +759,20 @@ def main():
     for f in fname_list:
         print("   ", f)
 
-    print_color(BLUE_INFO_COLOR, "\nHit enter to begin the refactoring... ", end="")
+    print_info("\nHit enter to begin the refactoring... ", end="")
     raw_input("")
     print()
 
     # Create a project.
     project = Project(project_dir)
+    project.prefs.set("soa_followed_calls", SOA_FOLLOWED_CALLS)
 
     # Analyze the project.
     # Does this help refactoring?  See below for related discussion.
     # https://groups.google.com/forum/#!topic/rope-dev/1P8OADQ0DQ4
-    print_color(BLUE_INFO_COLOR, "Analyzing all the modules in the project,"
-                                                           " may be slow...")
+    print_info("Analyzing all the modules in the project, may be slow...")
     rope.base.libutils.analyze_modules(project) # Analyze all the modules.
-    print_color(BLUE_INFO_COLOR, "Finished the analysis.", sep="")
+    print_info("Finished the analysis.", sep="")
     print()
 
     for filename in fname_list:
