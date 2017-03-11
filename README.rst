@@ -118,6 +118,11 @@ for potential problems, and warnings are issued if any are found.  No scoping
 is taken into account so most of these warnings are probably false alarms.  To
 be cautious the warnings should still be checked to see what is causing them.
 
+   This is just indented.
+
+::
+   This is indented under colons.
+
 .. note::
 
     Rough "proof" of reasonable safety for changes without warnings and
