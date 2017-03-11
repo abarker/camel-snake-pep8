@@ -8,15 +8,16 @@ Python-Rope to find and perform the changes.
 It does not do all the changes, but it does most of them.  (It currently does
 not recognize many tuple assignments.)
 
-* **Use this software at your own risk.**  This program has various features
-   to try to avoid introducing errors in renaming, but correctness cannot be
-   guaranteed.  Always make a backup copy of any project before running this
-   program on it.  The program has been used a few times with good results, but
-   does not currently have formal tests.
+* **Use this software at your own risk.**
+  
+  This program has various features to try to avoid introducing errors in
+  renaming, but correctness cannot be guaranteed.  Always make a backup copy of
+  any project before running this program on it.  The program has been used a
+  few times with good results, but does not currently have formal tests.
 
-   Rope is not perfect, so check your results and look at the warnings issued.
+  Rope is not perfect, so check your results and look at the warnings issued.
 
-*  **Only tested on Ubuntu Linux.**  May or may not work on Windows.
+* **Only tested on Ubuntu Linux.**  May or may not work on Windows.
 
 Installing and using
 --------------------
@@ -31,11 +32,15 @@ module.
 
 Usage::
 
-      camel_snake_pep8.py <projectDir> <fileToModify> [<fileToModify> ...]
+      python2 camel_snake_pep8.py <projectDir> <moduleToModify> [<moduleToModify> ...]
 
-For example, to change all the files in a project go to the main source
-directory of the project (the package root if the project is a package) to be
-refactored and type::
+The program can be used to refactor Python 2 or Python 3 code, **but it must
+be run with Python 2**.  This is because, as of Mar. 2017, Python-Rope only
+supports Python 2 (a Python 3 version is said to be in progress).
+
+As an example, to change all the files in a project go to the main source
+directory of the project to be refactored (which is the package root if the
+project is a package) and type::
 
     python2 camel_snake_pep8.py . *.py
 
@@ -45,10 +50,6 @@ If the main Python file is made executable you can just type::
 
 Be sure to include any subpackage modules, on the same line, if there are
 subpackages.
-
-This program can be used to refactor Python 2 or Python 3 code, but **it must
-be run with Python 2**.  This is because as of Mar. 2017 Python-Rope only
-supports Python 2; a Python 3 version is said to be in progress.
 
 The program can be stopped at any time with ``^C``.  It is better to make all
 the changes in one run of the program, though, since the program collects all
