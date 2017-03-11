@@ -125,8 +125,8 @@ causing them.
     1.  The camel case strings that this program would change to snake case strings
     without issuing a warning (and vice versa) are disjoint sets of names.
 
-    2.  If no occurrences of the new, proposed name exist in any file where changes
-    are made then no warning will be given and all the instances of the old
+    2.  If no occurrences of the new, proposed name exist in any file where
+    changes are made then no warning will be given and all the instances of the old
     name will be converted to the new one.  (If the string *does* exist in one
     of those files a warning will be given.)  No name collisions can occur
     because the new name did not exist in any of those files in the first
