@@ -10,6 +10,12 @@ the changes.
 It does not do all the changes, but it does most of them.  (It currently does
 not recognize many tuple assignments.)
 
+Note that the autopep8 program (also pip installable) can be used to
+automatically change many syntactical and spacing issues, but it does not do
+renaming.  If that program is also used it should be done as a separate step,
+and some testing should be done between running the two programs to help
+isolate any problems which might be introduced.
+
 * **Use this software at your own risk.**
   
   This program has various features to try to avoid introducing errors in
@@ -120,6 +126,14 @@ is taken into account so most of these warnings are probably false alarms.  To
 be cautious, though, the warnings should still be checked to see what is
 causing them.
 
+To summarize: all names per module are saved before any changes, and all names
+per module are saved after all the changes.  The name mappings are all saved.
+A warning is given on mapping a name into a name that pre-existed in a module.
+A warning is also given for a mapping that collides with a previous mapping (is
+not one-to-one).  After all the changes, the places where preimages of accepted
+change mappings still exist are warned about.  Similarly, places where the
+images of rejected change mappings still exist are warned about.
+
     Rough "proof" of reasonable safety for changes without warnings and
     assuming that Python-Rope does the name replacements correctly (which
     it doesn't always do, especially class attributes it cannot resolve).
@@ -127,10 +141,9 @@ causing them.
     1.  The camel case strings that this program would change to snake case strings
     without issuing a warning (and vice versa) are disjoint sets of names.
 
-    2.  If no occurrences of the new, proposed name exist in any file where
-    changes are made then no warning will be given and all the instances of the old
-    name will be converted to the new one.  (If the string *does* exist in one
-    of those files a warning will be given.)  No name collisions can occur
+    2.  If no occurrences of the new, proposed name exist in any file where changes
+    are made then no warning will be given and all the instances of the old
+    name will be converted to the new one.  No name collisions can occur
     because the new name did not exist in any of those files in the first
     place.  Any variables which end up with the same name already had the same
     name in the first place.
@@ -141,7 +154,8 @@ causing them.
 
     Other possible problems can arise from cases where Rope cannot resolve a
     proposed change and so that change is skipped even though it is
-    semantically necessary.
+    semantically necessary.  The analysis after all changes should at least
+    warn in most of these cases.
     
 License
 =======

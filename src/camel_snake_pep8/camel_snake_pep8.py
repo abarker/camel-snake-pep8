@@ -21,6 +21,10 @@ Currently only runs on Python 2, but can refactor Python 2 and Python 3.
 # names and offsets from the files, and perhaps take scoping into account on
 # the warnings.
 
+# Possible enhancements:
+# - Better command line with more options.
+# - Logging.
+
 from __future__ import print_function, division
 import sys
 import os
@@ -196,29 +200,39 @@ first_cap_re = re.compile('(.)([A-Z][a-z]+)') # Used in camel_to_snake.
 all_cap_re = re.compile('([a-z0-9])([A-Z])')  # Used in camel_to_snake.
 
 def camel_to_snake(name):
-    """Convert possible camelcase string to snake case."""
+    """Convert possible camel case string to snake case.  Anything with all caps
+    and underscores is left unmodified (might be a constant)."""
     # Modified from: http://stackoverflow.com/questions/1175208/
-    if all(c.isupper() or c == "_" for c in name): # Regexes fail on all-cap constants.
+    if all(c.isupper() or c == "_" for c in name):
         return name
     s1 = first_cap_re.sub(r'\1_\2', name)
     return all_cap_re.sub(r'\1_\2', s1).lower()
 
 def snake_to_camel(name):
-    """Convert snake case names to camel case with first word capitalzed."""
+    """Convert snake case names to camel case with first word capitalzed.
+    Always capitalizes first letter (to handle camel case starting with
+    lower case).  Preserves one leading underscore if present."""
+    leading_underscore = False
+    if name and name[0] == "_":
+        leading_underscore = True
+    name = name[0].upper() + name[1:]
     words = name.split("_")
-    if len(words) == 1: # No underscores to split on.
+    if len(words) == 1 or (len(words) == 2 and leading_underscore):
         return name
     cap_words = [w.capitalize() for w in words]
-    return "".join(cap_words)
+    joined_name = "".join(cap_words)
+    if leading_underscore:
+        joined_name = "_" + joined_name
+    return joined_name
 
 def get_source_string(fname):
-    """Get string versions of the source code in the files with filenames
-    passed in.  Returns a dict keyed by the filenames."""
+    """Get string version of the source code in the file with the filename
+    passed in."""
     with open(fname, "r") as source_file:
         source_string = source_file.read()
     return source_string
 
-def color(color, string):
+def colorize_string(color, string):
     """Convert a string to a Colorama colorized string."""
     return color + string + RESET
 
@@ -600,8 +614,8 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
                                           [c.name, accepted_name, accepted_new_name])
 
             # Colorize the description and print it out for the user to view.
-            color_new_name = color(NEW_NAME_COLOR, new_name)
-            color_name = color(CURR_NAME_COLOR, name)
+            color_new_name = colorize_string(NEW_NAME_COLOR, new_name)
+            color_name = colorize_string(CURR_NAME_COLOR, name)
             change_string = change_string.replace(name, color_name)
             change_string = change_string.replace(new_name, color_new_name)
             # TODO, maybe: Could also remove any REJECTED_CHANGE_MAGIC_COOKIE strings.
@@ -622,19 +636,17 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
                         "\nThe modules it was found in are:"
                         .format(new_name))
                 for m in existing_name_modules:
-                    print_warning("   ", m)
+                    print("   ", m)
                 print()
             if conversion_collisions:
                 print_warning(
                         "Warning: Already accepted a rename of a different name to the"
                         " new name\n'{0}' in one of the modules to change.  This"
                         " may or may not\ncause a name collision.  Scoping was not taken"
-                        " into account in the analysis.\n"
-                        "\nThe modules and previously-accepted changes are:"
-                        .format(new_name))
+                        " into account in the analysis.\n".format(new_name))
+                print_warning("The modules and previously-accepted changes are:")
                 for m in conversion_collisions:
-                    print_warning("   In '{0}' changed '{1}' to '{2}'."
-                                  .format(m[0], m[1], m[2]))
+                    print("   In '{0}' changed '{1}' to '{2}'.".format(m[0], m[1], m[2]))
                 print()
 
             # Query the user.

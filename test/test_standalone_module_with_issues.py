@@ -1,5 +1,5 @@
 
-from __future__ import print_function, division
+from __future__ import print_function, division, absolute_import
 
 #
 # Test collisions due to Rope renaming.
@@ -44,7 +44,7 @@ for camelCount, camelVar in enumerate(range(3)):
 # Test modifying docs.
 #
 
-class snake_name(object):
+class _snake_name(object):
     """This is a class that uses `snake_name` as its name to test when `snake_name`
     will be modified by Rope with docs set to change or not."""
     d = {}
@@ -57,4 +57,12 @@ class snake_name(object):
 xX, yY, zZ = 1, 2, 3 # Only the last one, zZ, is modified.
 
 yY = 100 # This change does not cause a problem, though, since Rope also gets above yY.
+
+#
+# Test some special case short names.
+#
+
+# Names that are all caps and underscores are left unchanged (might be consts).
+def _G(_, X, xX, yY, ZZ, _Y, _rR_=__name__):
+    pass
 
