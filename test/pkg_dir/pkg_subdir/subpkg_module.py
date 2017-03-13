@@ -10,5 +10,6 @@ assert dayOfWeek == 5
 class snake_name(object):
     pass
 
-myVar = 10
+myVar1 = 10
+myVar2 = 11
 

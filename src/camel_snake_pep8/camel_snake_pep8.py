@@ -718,6 +718,7 @@ if not os.path.isdir(project_dir_realpath):
 project_is_package = False
 if os.path.exists(os.path.join(project_dir, "__init__.py")):
     project_is_package = True
+
 fname_list = sys.argv[2:]
 for f in fname_list:
     if not f[-3:] == ".py":

@@ -7,8 +7,9 @@ Python-Rope to find and perform the changes.  The program interactively
 displays proposed changes and queries the user as to whether or not to accept
 the changes.
 
-It does not do all the changes, but it does most of them.  (It currently does
-not recognize many tuple assignments.)
+It does not do all the changes, but it does most of them.  It currently does
+not recognize many tuple assignments, and does not try to modify any names in
+the context of import statements.
 
 Note that the autopep8 program (also pip installable) can be used to
 automatically change many syntactical and spacing issues, but it does not do
@@ -16,14 +17,16 @@ renaming.  If that program is also used it should be done as a separate step,
 and some testing should be done between running the two programs to help
 isolate any problems which might be introduced.
 
-* **Use this software at your own risk.**
-  
-  This program has various features to try to avoid introducing errors in
-  renaming, but correctness cannot be guaranteed.  Always make a backup copy of
-  any project before running this program on it.  The program has been used a
-  few times with good results, but does not currently have formal tests.
+* **Use this software at your own risk.** This program has various features to
+  try to avoid introducing errors in renaming, but correctness cannot be
+  guaranteed.  Always make a backup copy of any project before running this
+  program on it.  The program has been used a few times with good results, but
+  does not currently have formal tests.
 
   Rope is not perfect, so check your results and look at the warnings issued.
+  Rope can have problems with changing names which are imported from different
+  modules, especially with "import ... as", so it might be a good idea to
+  change all names which appear in such statements by hand.
 
 * **Only tested on Ubuntu Linux.**  May or may not work on Windows.
 
@@ -56,30 +59,30 @@ If the main Python file is made executable you can just type::
 
     camel_snake_pep8.py . *.py
 
-Be sure to include any subpackage module to be modified, on the same line, if
-there are subpackages.
+Be sure to include the paths to any subpackage modules to be modified, on the
+same line, if there are subpackages.
 
 The program can be stopped at any time with ``^C``.  It is better to make all
-the changes in one run of the program, though, since the program collects all
-the existing names (per module) before starting in order to give warnings about
-possible name collisions.
+the changes in one run of the program, though. That is because the program
+collects and saves all the names in modules to change before any changes are
+made in order to give warnings about possible name collisions.
 
 How it works
 ------------
 
-This program goes through each file character by character keeping the
+This program goes through each file character by character, keeping the
 character offset value.  This offset is passed to Python-Rope to detect
-variables to possibly rename and their offsets.  It queries the user about
-proposed changes and makes any user-approved changes.  Python-Rope is also used
-to do the renaming.
+variables to possibly rename.  The program queries the user about proposed
+changes and makes any user-approved changes.  Python-Rope is also used to do
+the renaming.
 
-The files and name lists are all re-processed after each change, since offsets
-can change with each modification.  The running time is nevertheless not bad
-for interactive use.  Variables names for rejected changes, to be kept the
-same, are temporarily renamed to have a magic string appended to them.  This
-magic string is then globally removed from all the files afterward.  If the
-program halts abnormally (so the ``finally`` of a ``try`` is not executed) some
-of those magic strings may still be present.
+The names and offsets from a module file are all re-calculated after each
+change, since offsets can change with each modification.  The running time is
+nevertheless not bad for interactive use.  Variables names for rejected
+changes, to be kept the same, are temporarily renamed to have a magic string
+appended to them.  This magic string is then globally removed from all the
+files afterward.  If the program halts abnormally (so the ``finally`` of a
+``try`` is not executed) some of those magic strings may still be present.
 
 Warnings and theory
 -------------------
@@ -109,7 +112,7 @@ any changes by the current run of the program).
 Another type of name collision is when the renaming itself causes two distinct
 names like ``myVar`` and ``myVAR`` to map to a common new name ``my_var``.  In
 this case, a warning is given if a name change that was already accepted (on
-this run of the program) mapped a different name to that same new name.
+the current run of the program) mapped a different name to that same new name.
 
 Warnings are issued for possible situations which may lead to a collision -- or
 may not, since scoping is not taken into account.  The default query reply,
@@ -126,6 +129,12 @@ is taken into account so most of these warnings are probably false alarms.  To
 be cautious, though, the warnings should still be checked to see what is
 causing them.
 
+Another problem comes when Rope changes the name of a variable assigned in a
+module, but then fails to also change an import statement from another module
+which imports that variable from the first module.  Similarly, Rope cannot
+resolve some attribute assignments.  Both of these kinds of problems will
+generate warnings after all the changes have been made.
+
 To summarize: all names per module are saved before any changes, and all names
 per module are saved after all the changes.  The name mappings are all saved.
 A warning is given on mapping a name into a name that pre-existed in a module.
@@ -136,7 +145,7 @@ images of rejected change mappings still exist are warned about.
 
     Rough "proof" of reasonable safety for changes without warnings and
     assuming that Python-Rope does the name replacements correctly (which
-    it doesn't always do, especially class attributes it cannot resolve).
+    it doesn't always do, e.g., class attributes it cannot resolve).
 
     1.  The camel case strings that this program would change to snake case strings
     without issuing a warning (and vice versa) are disjoint sets of names.
@@ -150,13 +159,11 @@ images of rejected change mappings still exist are warned about.
 
     Of course since Python is dynamic and has introspection there will always
     be cases where the rename substitutions fail (such as modifying the globals
-    dict).
+    dict).  Rope is also not perfect, and fails to make some changes which it
+    should make for semantic equivalence.  Most of these latter errors will at
+    least cause a warning to be generated after all the changes have been
+    applied.
 
-    Other possible problems can arise from cases where Rope cannot resolve a
-    proposed change and so that change is skipped even though it is
-    semantically necessary.  The analysis after all changes should at least
-    warn in most of these cases.
-    
 License
 =======
 
