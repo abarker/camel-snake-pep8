@@ -11,7 +11,7 @@ It does not do all the changes, but it does most of them.  It currently does
 not recognize many tuple assignments, and does not try to modify any names in
 the context of import statements.
 
-Note that the autopep8 program (also pip installable) can be used to
+Note that the autopep8 program (which is pip installable) can be used to
 automatically change many syntactical and spacing issues, but it does not do
 renaming.  If that program is also used it should be done as a separate step,
 and some testing should be done between running the two programs to help
