@@ -731,7 +731,12 @@ def main():
 
     print_banner("Running camel_snake_pep8.")
 
-    print_warning("Be sure to make a backup copy of all files before running this"
+    if project_is_package:
+        print("The project is detected as a Python package.")
+    else:
+        print("The project is detected to be non-package Python scripts.")
+
+    print_warning("\nBe sure to make a backup copy of all files before running this"
                   "\nprogram. All changes are made to the files in-place.\n")
 
     print("The default reply for queries (e.g. with enter) when no warning/caution"
@@ -746,17 +751,12 @@ def main():
           " in the same run of\nthe program because warnings of"
           " possible collisions will be more accurate.")
 
-    if project_is_package:
-        print("\nThe project is detected as a Python package.")
-    else:
-        print("\nThe project is detected to not be a Python package.")
-
     print("\nModifying the docs changes the names in strings, too.  This is convenient,"
           "\nbut things like dict keys will also be changed.  If you choose to modify"
           "\ndocs you can still select 'd' on viewing individual changes to toggle the"
           "\nsetting off temporarily.")
 
-    print_info("\nModify docs (default is 'n')? ", end="")
+    print_info("Modify docs (default is 'n')? ", end="")
     docs = raw_input("")
     if docs and docs in "yY":
         print("\nModifying the docs by default.")
