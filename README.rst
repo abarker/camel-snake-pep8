@@ -4,12 +4,13 @@ camel-snake-pep8
 A refactoring tool to help convert camel case to snake case and vice versa in a
 Python program, in conformity with the PEP-8 style guide.  It uses/abuses
 Python-Rope to find and perform the changes.  The program interactively
-displays proposed changes and queries the user as to whether or not to accept
-the changes.
+displays proposed changes and the code diffs that would result from the change.
+It queries the user as to whether or not to accept the changes.
 
-It does not do all the changes, but it does most of them.  It currently does
-not recognize many tuple assignments, and does not try to modify any names in
-the context of import statements.
+The program does not do all the changes for full PEP-8 naming compliance, but
+it does most of them.  It currently does not recognize unpacked assignments to
+tuples very well, and it does not try to modify any names in the context of
+import statements.
 
 Note that the autopep8 program (which is pip installable) can be used to
 automatically change many syntactical and spacing issues, but it does not do
@@ -62,10 +63,10 @@ If the main Python file is made executable you can just type::
 Be sure to include the paths to any subpackage modules to be modified, on the
 same line, if there are subpackages.
 
-The program can be stopped at any time with ``^C``.  It is better to make all
-the changes in one run of the program, though. That is because the program
-collects and saves all the names in modules to change before any changes are
-made in order to give warnings about possible name collisions.
+The program can be stopped at any time with ``^C``.  But note that it is better
+to make all the changes in one run of the program. That is because the program
+collects and saves all the names in modules to change, before any changes are
+made, in order to give warnings about possible name collisions.
 
 How it works
 ------------
@@ -78,11 +79,13 @@ the renaming.
 
 The names and offsets from a module file are all re-calculated after each
 change, since offsets can change with each modification.  The running time is
-nevertheless not bad for interactive use.  Variables names for rejected
-changes, to be kept the same, are temporarily renamed to have a magic string
-appended to them.  This magic string is then globally removed from all the
-files afterward.  If the program halts abnormally (so the ``finally`` of a
-``try`` is not executed) some of those magic strings may still be present.
+nevertheless not bad for interactive use.  Variable names for rejected name
+changes --- which remain the same as the original variable name --- are
+temporarily renamed to have a magic string appended to them.  This is so the
+program knows the name should be retained.  This magic string is then globally
+removed from all the files all the possible changes are processed.  If the
+program halts abnormally (such that the ``finally`` of a ``try`` is not
+executed) some of those magic strings may still be present.
 
 Warnings and theory
 -------------------
@@ -104,28 +107,29 @@ the function.  Here is an example:
        return camelArg
 
 If the change of the parameter ``camelArg`` to ``camel_arg`` is accepted
-(despite the warning) the new function will return 444 instead of the previous
-value 555.  The camel-snake-pep8 program will issue a warning since the new
-name previously existed in the module before any changes were made (i.e, before
-any changes by the current run of the program).
+(despite the warning that will be issued) the new function will return 444
+instead of the previous value 555.  The camel-snake-pep8 program will issue a
+warning since the new name previously existed in the module before any changes
+were made (i.e, before any changes by the current run of the program).
 
 Another type of name collision is when the renaming itself causes two distinct
 names like ``myVar`` and ``myVAR`` to map to a common new name ``my_var``.  In
-this case, a warning is given if a name change that was already accepted (on
-the current run of the program) mapped a different name to that same new name.
+this case, a warning is given if a name change that was accepted (on the
+current run of the program) already mapped a different name to that same new
+name.
 
 Warnings are issued for possible situations which may lead to a collision -- or
-may not, since scoping is not taken into account.  The default query reply,
-such as when the user just hits "enter" each time, is to accept the change when
-no warning is given and reject the change when a warning is given.  Many of the
-changes with warnings will actually be safe, but before accepting one the
-displayed diffs for the change (and possibly the files themselves) should be
-carefully inspected to be sure.  As an alternative, a different name entirely
-can be tried by hitting ``c`` in respose to the query.
+may not, since scoping is not taken into account in the analysis.  The default
+query reply, such as when the user just hits "enter" each time, is to accept
+the change when no warning is given and reject the change when a warning is
+given.  Many of the changes with warnings will actually be safe, but before
+accepting one the displayed diffs for the change (and possibly the files
+themselves) should be carefully inspected to be sure.  As an alternative, a
+different name entirely can be tried by hitting ``c`` in response to the query.
 
 After all the changes are made the program does an analysis looking for
 potential problems, and warnings are issued for any that are found.  No scoping
-is taken into account so most of these warnings are probably false alarms.  To
+is taken into account so many of these warnings are probably false alarms.  To
 be cautious, though, the warnings should still be checked to see what is
 causing them.
 
@@ -138,14 +142,14 @@ generate warnings after all the changes have been made.
 To summarize: all names per module are saved before any changes, and all names
 per module are saved after all the changes.  The name mappings are all saved.
 A warning is given on mapping a name into a name that pre-existed in a module.
-A warning is also given for a mapping that collides with a previous mapping (is
-not one-to-one).  After all the changes, the places where preimages of accepted
-change mappings still exist are warned about.  Similarly, places where the
-images of rejected change mappings still exist are warned about.
+A warning is also given for a mapping that collides with a previous mapping
+(i.e., is not one-to-one).  After all the changes, the places where preimages
+of accepted-change mappings still exist are warned about.  Similarly, places
+where the images of rejected-change mappings still exist are warned about.
 
-    Rough "proof" of reasonable safety for changes without warnings and
-    assuming that Python-Rope does the name replacements correctly (which
-    it doesn't always do, e.g., class attributes it cannot resolve).
+    Rough "proof" of reasonable safety for changes without warnings, assuming
+    that Python-Rope does the name replacements correctly (which it doesn't
+    always do, e.g., class attributes it cannot resolve).
 
     1.  The camel case strings that this program would change to snake case strings
     without issuing a warning (and vice versa) are disjoint sets of names.
