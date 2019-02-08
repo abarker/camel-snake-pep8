@@ -347,9 +347,10 @@ def get_function_param_names(initial_fun_string, initial_offset, fun_name_string
     index = fun_string.find("(") + 1
     fun_name = fun_string[:index-1]
     assert fun_name == fun_name_string # Error check.
-    # TODO: May need to first goto matching close-paren before the split on `->`, but
-    # rope currently doesn't handle `->` anyway; it throws a syntax error.
-    #fun_string = fun_string[index:].split("->")[0] # Remove name and return type.
+    fun_string = fun_string[index:] # Remove name and return type.
+    # TODO: Will need to first goto matching close-paren before the split on `->`, but
+    # rope currently doesn't handle `->` anyway; it throws a syntax error, so comment out.
+    #fun_string = fun_string.split("->")[0] # Remove name and return type.
     fun_string = fun_string.rstrip()
     offset += index
     index = 0 # Keep a local index relative to first char of first arg.
