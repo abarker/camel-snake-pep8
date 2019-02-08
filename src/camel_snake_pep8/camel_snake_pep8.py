@@ -441,6 +441,8 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
         class_names = True
 
     source_string = get_source_string(source_file_name)
+    if not source_string:
+        return []
     w = worder.Worder(source_string)
 
     possible_changes = []
