@@ -308,7 +308,9 @@ def unique_everseen(iterable, key=None):
 #
 
 def process_param(param, offset):
-    """Process a single parameter produced by `get_function_parameter_names`."""
+    """Process a single parameter produced by `get_function_parameter_names`.
+    Note that all nested constructs and their outer delimiters in `param` have
+    already been turned into whitespace."""
     # Ignore args with default values, since Rope considers them assignments.
     if "=" in param:
         return []
