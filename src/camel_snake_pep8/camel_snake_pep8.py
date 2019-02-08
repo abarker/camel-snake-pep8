@@ -329,12 +329,14 @@ def process_param(param, offset):
     return [param, offset]
 
 def get_function_param_names(initial_fun_string, initial_offset, fun_name_string):
-    """Parse a function string returned by Rope's
-    `get_function_and_args_in_header` to get the parameter names which are not
-    assigned default values (since those are taken care of in the
-    variable-assignment group).  The function name `fun_name_string` is passed
-    only as an error check to make sure the name found in the initial offset
-    search matches the name in the string returned by the Rope function."""
+    """Parse a function string returned by Rope's `get_function_and_args_in_header`
+    to get the parameter names which are not assigned default values (those
+    with default values are taken care of in the variable-assignment group).
+    The function name `fun_name_string` is passed only as an error check to
+    make sure the name found in the initial offset search matches the name in
+    the string returned by the Rope function."""
+    # TODO: Rope currently has limited support for Python 3 type hints.  This
+    # routine will need modifications to handle them when rope's support improves.
     fun_string = initial_fun_string
     offset = initial_offset
 
@@ -345,7 +347,9 @@ def get_function_param_names(initial_fun_string, initial_offset, fun_name_string
     index = fun_string.find("(") + 1
     fun_name = fun_string[:index-1]
     assert fun_name == fun_name_string # Error check.
-    fun_string = fun_string[index:].split("->")[0] # Remove name and return type.
+    # TODO: May need to first goto matching close-paren before the split on `->`, but
+    # rope currently doesn't handle `->` anyway; it throws a syntax error.
+    #fun_string = fun_string[index:].split("->")[0] # Remove name and return type.
     fun_string = fun_string.rstrip()
     offset += index
     index = 0 # Keep a local index relative to first char of first arg.
@@ -443,8 +447,8 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
         class_names = True
 
     source_string = get_source_string(source_file_name)
-    if not source_string:
-        return []
+    #if not source_string:
+    #    return []
     w = worder.Worder(source_string)
 
     possible_changes = []

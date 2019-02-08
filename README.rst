@@ -49,6 +49,7 @@ Usage::
 The program can be used to refactor either Python 2 or Python 3 code **but it
 must be run with Python 2**.  This is because, as of Mar. 2017, Python-Rope
 only supports Python 2 (a Python 3 version is said to be in progress).
+Note that Rope currently only has limited support for Python 3 type hinting.
 
 As an example, to change all the files in a project go to the main source
 directory of the project to be refactored (which is the package root if the
