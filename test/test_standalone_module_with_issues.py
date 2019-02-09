@@ -6,7 +6,8 @@ from __future__ import print_function, division, absolute_import
 #
 
 def camelFunction(camelArg1, camelArg2, camelArg3, camelArg4, camelArg5):
-    """Warning on this is correct, gives error."""
+    """Warning given on this is correct: it causes an error if camelArg4 is converted
+    to existing variable `camel_arg4`."""
     camel_arg4 = 333
     class snake_class(object):
         camelArg5 = camelArg3
@@ -19,8 +20,10 @@ def camelFunction(camelArg1, camelArg2, camelArg3, camelArg4, camelArg5):
 
 a_a = 44
 def fF(aA, a, bB, b, cC, c, dD=3, d=a_a): # Test short names and rename to global.
-    """Warning is not correct on this, does not actually cause error.
-    Resulting code is correct, but `aA` is not converted when warning is heeded."""
+    """Warning is not correct on `aA` in this function, since it does not actually
+    cause an error (`a_a` exists only in module scope, but scoping isn't taken into
+    account).  The resulting code is correct, but `aA` is not converted when the
+    warning is heeded."""
     pass
 
 #

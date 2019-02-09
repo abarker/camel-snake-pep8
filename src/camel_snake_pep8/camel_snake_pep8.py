@@ -201,7 +201,7 @@ all_cap_re = re.compile('([a-z0-9])([A-Z])')  # Used in camel_to_snake.
 
 def camel_to_snake(name):
     """Convert possible camel case string to snake case.  Anything with all caps
-    and underscores is left unmodified (might be a constant)."""
+    and underscores is left unmodified (since it might be a constant)."""
     # Modified from: http://stackoverflow.com/questions/1175208/
     if all(c.isupper() or c == "_" for c in name):
         return name
