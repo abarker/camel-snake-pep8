@@ -48,7 +48,7 @@ Usage::
 
 The program can be used to refactor either Python 2 or Python 3 code.  **Run
 the program with the same version of Python as the code that is being
-modified.** That is, if the code being modified is Python 2 code then run the
+modified.** That is, if the code being refactored is Python 2 code then run the
 program with `python2`, and similarly for Python 3.
 
 Note that Rope currently only has limited support for Python 3 type hinting.
@@ -57,7 +57,7 @@ As an example, to change all the files in a project go to the main source
 directory of the project to be refactored (which is the package root if the
 project is a package) and type::
 
-    python2 camel_snake_pep8.py . *.py
+    python camel_snake_pep8.py . *.py
 
 If the main Python file is made executable you can just type::
 
