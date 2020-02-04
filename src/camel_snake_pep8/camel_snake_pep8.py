@@ -58,6 +58,10 @@ REJECTED_CHANGE_MAGIC_COOKIE = "_XxX_CamelSnakePep8_PreserveName_XxX_"
 
 SOA_FOLLOWED_CALLS = 1 # Depth of calls in Rope static analysis (Rope default is 1).
 
+python_version = sys.version_info[0]
+user_input = raw_input if python_version == 2 else input
+filterfalse = itertools.ifilterfalse if python_version == 2 else itertools.filterfalse
+
 #
 # Dicts and sets for saving names from files and related functions.
 #
@@ -293,7 +297,7 @@ def unique_everseen(iterable, key=None):
     seen = set()
     seen_add = seen.add
     if key is None:
-        for element in itertools.ifilterfalse(seen.__contains__, iterable):
+        for element in filterfalse(seen.__contains__, iterable):
             seen_add(element)
             yield element
     else:
@@ -563,6 +567,10 @@ def get_renaming_changes(project, module, offset, new_name, name, source_file_na
     except rope.base.exceptions.RefactoringError:
         print("Error in calculating a rename from '{0}' to '{1}' in file"
               "\n   {2}".format(name, new_name, source_file_name))
+    except:
+        print("Unexpected error in calculating a rename from '{0}' to '{1}' in file"
+              "\n   {2}".format(name, new_name, source_file_name))
+        raise
     return None
 
 def rope_rename_refactor(project, source_file_name, possible_changes, docs=True):
@@ -660,14 +668,14 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
 
             # Query the user.
             print_info("Do the changes? [yncd] ", end="")
-            yes_no = raw_input("").strip()
+            yes_no = user_input("").strip()
             if not yes_no or yes_no not in "dcyYnN": # Set default reply.
                 if warning: yes_no = "n"
                 else: yes_no = "y"
             if yes_no == "c":
                 print_info("\n", "-" * BANNER_WIDTH, "\n", sep="")
                 print_info("Enter a different string: ", end="")
-                new_name = raw_input("")
+                new_name = user_input("")
                 print()
                 continue
             if yes_no == "d":
@@ -766,7 +774,7 @@ def main():
           "\nsetting off temporarily.")
 
     print_info("Modify docs (default is 'n')? ", end="")
-    docs = raw_input("")
+    docs = user_input("")
     if docs and docs in "yY":
         print("\nModifying the docs by default.")
         docs = True
@@ -779,7 +787,7 @@ def main():
         print("   ", f)
 
     print_info("\nHit enter to begin the refactoring... ", end="")
-    raw_input("")
+    user_input("")
     print()
 
     # Create a project.
@@ -787,7 +795,7 @@ def main():
     project.prefs.set("soa_followed_calls", SOA_FOLLOWED_CALLS)
 
     # Analyze the project.
-    # Does this help refactoring?  See below for related discussion.
+    # Does this actually help refactoring?  See below for related discussion.
     # https://groups.google.com/forum/#!topic/rope-dev/1P8OADQ0DQ4
     print_info("Analyzing all the modules in the project, may be slow...")
     rope.base.libutils.analyze_modules(project) # Analyze all the modules.
@@ -802,6 +810,7 @@ def main():
         print_banner("Changing variables assigned in the code.")
         while change_assigned_variables:
             possible_changes = rope_iterate_worder(filename, assigned_vars=True)
+            print("\n\nAll assigned names:\n", possible_changes)
             if not possible_changes:
                 print("No more variable assignment changes.\n")
             if not rope_rename_refactor(project, filename, possible_changes, docs=docs):

@@ -57,9 +57,9 @@ class _snake_name(object):
 # Test multiple assignment.
 #
 
-xX, yY, zZ = 1, 2, 3 # Only the last one, zZ, is modified.
+xX, yY, zZ = 1, 2, 3 # xX is not modified, Rope bug in is_assigned_in_a_tuple_assignment or is_assigned_here?
 
-yY = 100 # This change does not cause a problem, though, since Rope also gets above yY.
+yY = 100 # This change does not cause a problem since Rope also gets above yY.
 
 #
 # Test some special case short names.

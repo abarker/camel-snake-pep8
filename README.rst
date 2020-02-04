@@ -12,11 +12,11 @@ it does most of them.  It currently does not recognize unpacked assignments to
 tuples very well, and it does not try to modify any names in the context of
 import statements.
 
-Note that the autopep8 program (which is pip installable) can be used to
-automatically change many syntactical and spacing issues, but it does not do
-renaming.  If that program is also used it should be done as a separate step,
-and some testing should be done between running the two programs to help
-isolate any problems which might be introduced.
+Note that a formatting program such as autopep8 (which is pip installable) can
+be used to automatically fix many syntactical and spacing issues, but they do
+not rename variables.  If such a program is also used it should be done as a
+separate step, and some testing should be done between running the two programs
+to help isolate any problems which might be introduced.
 
 * **Use this software at your own risk.** This program has various features to
   try to avoid introducing errors in renaming, but correctness cannot be
@@ -44,11 +44,13 @@ module.
 
 Usage::
 
-      python2 camel_snake_pep8.py <projectDir> <moduleToModify> [<moduleToModify> ...]
+      python camel_snake_pep8.py <projectDir> <moduleToModify> [<moduleToModify> ...]
 
-The program can be used to refactor either Python 2 or Python 3 code **but it
-must be run with Python 2**.  This is because, as of Mar. 2017, Python-Rope
-only supports Python 2 (a Python 3 version is said to be in progress).
+The program can be used to refactor either Python 2 or Python 3 code.  **Run
+the program with the same version of Python as the code that is being
+modified.** That is, if the code being modified is Python 2 code then run the
+program with `python2`, and similarly for Python 3.
+
 Note that Rope currently only has limited support for Python 3 type hinting.
 
 As an example, to change all the files in a project go to the main source
