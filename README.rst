@@ -36,11 +36,13 @@ Installing and using
 
 The dependences can be installed by the following command::
 
-   pip install rope colorama
-   
+   pip install rope colorama --upgrade
+
+A recent version of Rope is recommended for Python 3 compatibility.
+
 To install the program just clone or download the git repository and execute
 the main file ``camel_snake_pep8.py``.  The program is currently a single
-module.
+module (so you could alternately just copy that file).
 
 Usage::
 
