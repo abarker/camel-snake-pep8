@@ -13,10 +13,10 @@ tuples very well, and it does not try to modify any names in the context of
 import statements.
 
 Note that a formatting program such as autopep8 (which is pip installable) can
-be used to automatically fix many syntactical and spacing issues, but they do
-not rename variables.  If such a program is also used it should be done as a
-separate step, and some testing should be done between running the two programs
-to help isolate any problems which might be introduced.
+be used to automatically fix many syntactical and spacing issues, but those
+programs do not rename variables.  If such a program is also used it should be
+done as a separate step, and some testing should be done between running the
+two programs to help isolate any problems which might be introduced.
 
 * **Use this software at your own risk.** This program has various features to
   try to avoid introducing errors in renaming, but correctness cannot be
