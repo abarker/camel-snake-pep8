@@ -55,18 +55,17 @@ program with `python2`, and similarly for Python 3.
 
 Note that Rope currently only has limited support for Python 3 type hinting.
 
-As an example, to change all the files in a project go to the main source
-directory of the project to be refactored (which is the package root if the
-project is a package) and type::
+As an example, to change all the Python files in a package with one subpackage
+go to the package root directory and type::
 
-    python camel_snake_pep8.py . *.py
+    python camel_snake_pep8.py . *.py */*.py
 
 If the main Python file is made executable you can just type::
 
-    camel_snake_pep8.py . *.py
+    camel_snake_pep8.py . *.py */*.py
 
-Be sure to include the paths to any subpackage modules to be modified, on the
-same line, if there are subpackages.
+Be sure to include the paths to any subpackage modules, subsubpackage modules,
+etc., which are to be modified on the same line.
 
 The program can be stopped at any time with ``^C``.  But note that it is better
 to make all the changes in one run of the program. That is because the program

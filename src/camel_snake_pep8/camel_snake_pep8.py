@@ -452,8 +452,8 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
         class_names = True
 
     source_string = get_source_string(source_file_name)
-    #if not source_string:
-    #    return []
+    if not source_string:
+        return []
     w = worder.Worder(source_string)
 
     possible_changes = []
@@ -810,7 +810,7 @@ def main():
         print_banner("Changing variables assigned in the code.")
         while change_assigned_variables:
             possible_changes = rope_iterate_worder(filename, assigned_vars=True)
-            print("\n\nAll assigned names:\n", possible_changes)
+            #print("\n\nAll assigned names:\n", possible_changes) # Debug.
             if not possible_changes:
                 print("No more variable assignment changes.\n")
             if not rope_rename_refactor(project, filename, possible_changes, docs=docs):
