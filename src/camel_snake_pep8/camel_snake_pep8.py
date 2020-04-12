@@ -6,11 +6,12 @@ camel-snake-pep8
 
 A refactoring tool to help convert camel case to snake case and vice versa in a
 Python program, in conformity with the PEP-8 style guide.  It uses/abuses
-Python-Rope to do find and perform the changes.
+Python-Rope to find and perform the changes.
 
 **Use this software at your own risk.**
 
-Currently only runs on Python 2, but can refactor Python 2 and Python 3.
+Works with Python 2 or Python 3, but should be run with the interpreter for the
+same major version (2 or 3) as the code that is being refactored.
 
 ..  Copyright (c) 2017 by Allen Barker.
     License: MIT, see LICENSE for more details.
@@ -721,7 +722,7 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
 # Process command-line arguments.
 #
 
-if not len(sys.argv) >= 3:
+if len(sys.argv) < 3:
     print("Usage: camel_snake_pep8 <packageOrProjectDir> "
                                       "<fileToModify> [<fileToModify> ...]",
           file=sys.stderr)
