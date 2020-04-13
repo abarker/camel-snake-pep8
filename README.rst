@@ -60,10 +60,6 @@ go to the package root directory and type::
 
     python camel_snake_pep8.py . *.py */*.py
 
-If the main Python file is made executable you can just type::
-
-    camel_snake_pep8.py . *.py */*.py
-
 Be sure to include the paths to any subpackage modules, subsubpackage modules,
 etc., which are to be modified on the same line.
 
