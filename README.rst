@@ -40,7 +40,7 @@ The dependences can be installed by the following command::
 
 A recent version of Rope is recommended for Python 3 compatibility.
 
-To install the program just clone or download the git repository and execute
+To install the program just clone or download the git repository and run
 the main file ``camel_snake_pep8.py``.  The program is currently a single
 module (so you could alternately just copy that file).
 
