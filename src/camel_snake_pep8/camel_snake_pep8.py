@@ -732,6 +732,7 @@ project_dir_realpath = os.path.realpath(project_dir)
 if not os.path.isdir(project_dir_realpath):
     print_error("Error: First argument is not a directory.")
     sys.exit(1)
+
 project_is_package = False
 if os.path.exists(os.path.join(project_dir, "__init__.py")):
     project_is_package = True
@@ -798,8 +799,12 @@ def main():
     # Does this actually help refactoring?  See below for related discussion.
     # https://groups.google.com/forum/#!topic/rope-dev/1P8OADQ0DQ4
     print_info("Analyzing all the modules in the project, may be slow...")
-    rope.base.libutils.analyze_modules(project) # Analyze all the modules.
-    print_info("Finished the analysis.", sep="")
+    try:
+        rope.base.libutils.analyze_modules(project) # Analyze all the modules.
+        print_info("Finished the analysis.", sep="")
+    except AttributeError:
+        print_warning("Rope failed to analyze modules (possible Rope issue 260)."
+                      "\nProceeding without the analysis.")
     print()
 
     for filename in fname_list:
