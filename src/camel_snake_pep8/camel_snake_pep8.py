@@ -561,7 +561,7 @@ def get_renaming_changes(project, module, offset, new_name, name, source_file_na
                          docs=True):
     """Get the changes for doing a rename refactoring.  If Rope raises a
     `RefactoringError` it prints a warning and returns `None`."""
-    err_message = "Rope {} in calculating a rename from '{0}' to '{1}' in file\n   {2}\n"
+    err_message = "Rope {} in calculating a rename from '{}' to '{}' in file\n   {}\n"
 
     try:
         changes = Rename(project, module, offset).get_changes(
@@ -578,8 +578,8 @@ def get_renaming_changes(project, module, offset, new_name, name, source_file_na
         print_warning(err_message.format("SyntaxError", name, new_name, source_file_name))
 
     except:
-        print_warning("Unexpected error in calculating a rename from '{0}' to '{1}' in file"
-                      "\n   {2}".format(name, new_name, source_file_name))
+        print_warning("Unexpected error in calculating a rename from '{}' to '{}' in file"
+                      "\n   {}".format(name, new_name, source_file_name))
         raise
     return None
 
@@ -753,6 +753,10 @@ def parse_args():
 
     fname_list = args.modules
     for f in fname_list:
+        if not os.path.isfile(f):
+            print_error("Error: This argument should be a file but is not:\n   {}\n"
+                        .format(f))
+            sys.exit(1)
         if not f[-3:] == ".py":
             print_warning("Warning: All arguments after the first must end in '.py' (or"
                           "\nRope will have problems).  This file did not:\n   ", f)
@@ -812,7 +816,9 @@ def main():
     project = Project(project_dir, prefs = { # See .ropeproject/config.py; these override.
                                       #"indent_size": 4, # Default is 4.
                                       "save_history": False, # Default is True.
+                                      #"soa_followed_calls": 0, # Default is 0.
                                       #"ignore_syntax_errors": True, # Default is False.
+                                      #"python_files": ["*.py"], # Default is ["*.py"]
                                       })
     project.prefs.set("soa_followed_calls", SOA_FOLLOWED_CALLS)
 
