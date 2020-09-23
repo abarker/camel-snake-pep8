@@ -599,6 +599,11 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
 
     module_name = filename_to_module_name(source_file_name)
     module = project.find_module(module_name)
+    if module is None:
+        print_warning("Warning: Rope could not find the module '{}' from file\n   "
+                      "'{}'\nas a resource.\n"
+                      .format(module_name, source_file_name))
+        return False
 
     for name, offset, new_name in possible_changes:
         while True:
@@ -769,6 +774,9 @@ args, project_dir, project_dir_realpath, fname_list, project_is_package = parse_
 def main():
     """Run the program."""
     print_banner("Running camel_snake_pep8.")
+
+    # Change working dir to the project directory, just in case it isn't.
+    os.chdir(project_dir)
 
     if project_is_package:
         print("The project is detected as a Python package.")
