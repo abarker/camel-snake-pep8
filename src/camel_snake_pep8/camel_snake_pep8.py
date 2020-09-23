@@ -22,8 +22,8 @@ same major version (2 or 3) as the code that is being refactored.
 # the warnings.
 
 # Possible enhancements:
-# - Better command line with more options.
 # - Logging.
+# - More options.
 
 from __future__ import print_function, division
 import sys
@@ -31,6 +31,7 @@ import os
 import re
 import itertools
 from collections import defaultdict
+import argparse
 
 import rope
 from rope.base.project import Project
@@ -560,16 +561,25 @@ def get_renaming_changes(project, module, offset, new_name, name, source_file_na
                          docs=True):
     """Get the changes for doing a rename refactoring.  If Rope raises a
     `RefactoringError` it prints a warning and returns `None`."""
+    err_message = "Rope {} in calculating a rename from '{0}' to '{1}' in file\n   {2}\n"
+
     try:
         changes = Rename(project, module, offset).get_changes(
                                        new_name, docs=docs, unsure=None)
         return changes
+
     except rope.base.exceptions.RefactoringError:
-        print("Error in calculating a rename from '{0}' to '{1}' in file"
-              "\n   {2}".format(name, new_name, source_file_name))
+        print_warning(err_message.format("RefactoringError", name, new_name, source_file_name))
+
+    except AttributeError:
+        print_warning(err_message.format("AttributeError", name, new_name, source_file_name))
+
+    except SyntaxError:
+        print_warning(err_message.format("SyntaxError", name, new_name, source_file_name))
+
     except:
-        print("Unexpected error in calculating a rename from '{0}' to '{1}' in file"
-              "\n   {2}".format(name, new_name, source_file_name))
+        print_warning("Unexpected error in calculating a rename from '{0}' to '{1}' in file"
+                      "\n   {2}".format(name, new_name, source_file_name))
         raise
     return None
 
@@ -721,32 +731,39 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
 # Process command-line arguments.
 #
 
-if len(sys.argv) < 3:
-    print("Usage: camel_snake_pep8 <packageOrProjectDir> "
-                                      "<fileToModify> [<fileToModify> ...]",
-          file=sys.stderr)
-    sys.exit(1)
+def parse_args():
+    """Parse the command line arguments."""
+    parser = argparse.ArgumentParser(description="Rename variables to conform to PEP-8.")
+    parser.add_argument("dir", type=str, nargs=1, metavar="PROJECTDIR",
+                        help="The root directory of the project.")
+    parser.add_argument("modules", type=str, nargs="+", metavar="MODULE",
+                        help="Paths to all the modules to rename, including in subpackages.")
+    args = parser.parse_args()
 
-project_dir = sys.argv[1]
-project_dir_realpath = os.path.realpath(project_dir)
-if not os.path.isdir(project_dir_realpath):
-    print_error("Error: First argument is not a directory.")
-    sys.exit(1)
 
-project_is_package = False
-if os.path.exists(os.path.join(project_dir, "__init__.py")):
-    project_is_package = True
-
-fname_list = sys.argv[2:]
-for f in fname_list:
-    if not f[-3:] == ".py":
-        print_warning("Warning: All arguments after the first must end in '.py' (or"
-                      "\nRope will have problems).  This file did not:\n   ", f)
+    project_dir = args.dir[0]
+    project_dir_realpath = os.path.realpath(project_dir)
+    if not os.path.isdir(project_dir_realpath):
+        print_error("Error: First argument is not a directory.")
         sys.exit(1)
+
+    project_is_package = False
+    if os.path.exists(os.path.join(project_dir, "__init__.py")):
+        project_is_package = True
+
+    fname_list = args.modules
+    for f in fname_list:
+        if not f[-3:] == ".py":
+            print_warning("Warning: All arguments after the first must end in '.py' (or"
+                          "\nRope will have problems).  This file did not:\n   ", f)
+            sys.exit(1)
+
+    return args, project_dir, project_dir_realpath, fname_list, project_is_package
+
+args, project_dir, project_dir_realpath, fname_list, project_is_package = parse_args()
 
 def main():
     """Run the program."""
-
     print_banner("Running camel_snake_pep8.")
 
     if project_is_package:
@@ -792,7 +809,11 @@ def main():
     print()
 
     # Create a project.
-    project = Project(project_dir)
+    project = Project(project_dir, prefs = { # See .ropeproject/config.py; these override.
+                                      #"indent_size": 4, # Default is 4.
+                                      "save_history": False, # Default is True.
+                                      #"ignore_syntax_errors": True, # Default is False.
+                                      })
     project.prefs.set("soa_followed_calls", SOA_FOLLOWED_CALLS)
 
     # Analyze the project.
