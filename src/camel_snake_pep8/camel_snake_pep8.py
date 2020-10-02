@@ -578,29 +578,32 @@ def rope_iterate_worder(source_file_name, fun_name_defs=False, fun_arguments=Fal
 
 def get_renaming_changes(project, module, offset, new_name, name, source_file_name,
                          docs=True):
-    """Get the changes for doing a rename refactoring.  If Rope raises a
-    `RefactoringError` it prints a warning and returns `None`."""
+    """Get the changes for doing a rename refactoring.  Returns a tuple of the
+    changes and any error that was raised.  If Rope raises certain errors such
+    as `RefactoringError` it prints a warning and returns `None, e` where `e`
+    is the error."""
     err_message = "Rope {} in calculating a rename from '{}' to '{}' in file\n   {}\n"
+    e = None
 
     try:
         changes = Rename(project, module, offset).get_changes(
                                        new_name, docs=docs, unsure=None)
-        return changes
+        return changes, e
 
-    except rope.base.exceptions.RefactoringError:
+    except rope.base.exceptions.RefactoringError as error:
         print_warning(err_message.format("RefactoringError", name, new_name, source_file_name))
 
-    except AttributeError:
+    except AttributeError as e:
         print_warning(err_message.format("AttributeError", name, new_name, source_file_name))
 
-    except SyntaxError:
+    except SyntaxError as e:
         print_warning(err_message.format("SyntaxError", name, new_name, source_file_name))
 
     except:
         print_warning("Unexpected error in calculating a rename from '{}' to '{}' in file"
                       "\n   {}".format(name, new_name, source_file_name))
         raise
-    return None
+    return None, e
 
 def rope_rename_refactor(project, source_file_name, possible_changes, docs=True):
     """Query the user about changes to make.  Do at most one change (since all
@@ -627,8 +630,8 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
     for name, offset, new_name in possible_changes:
         while True:
             skip_change = False # Skip changes that rope simply cannot resolve.
-            changes = get_renaming_changes(project, module, offset, new_name, name,
-                                           source_file_name, docs=docs)
+            changes, err = get_renaming_changes(project, module, offset, new_name, name,
+                                                source_file_name, docs=docs)
             if not changes:
                 skip_change = True
                 break
@@ -730,9 +733,9 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
                 skip_change = False
                 save_changes(modules_to_change_realpaths, (name, new_name),
                                                           user=True, accepted=False)
-                changes = get_renaming_changes(project, module, offset,
-                              create_rejected_change_preserve_name(name),
-                              name, source_file_name, docs=False)
+                changes, err = get_renaming_changes(project, module, offset,
+                                      create_rejected_change_preserve_name(name),
+                                      name, source_file_name, docs=False)
                 if not changes:
                     skip_change = True
                     break
@@ -926,7 +929,6 @@ def run_then_fix_rejected_and_analyze():
 
 # Call fun to get the command-line args.  Note these are module-scope variables.
 cmdline_args, project_dir, project_dir_realpath, fname_list, project_is_package = parse_args()
-print("args are", cmdline_args, cmdline_args.yes_to_all)
 
 if __name__ == "__main__":
 
