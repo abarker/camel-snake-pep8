@@ -60,7 +60,6 @@ REJECTED_CHANGE_MAGIC_COOKIE = "_XxX_CamelSnakePep8_PreserveName_XxX_"
 SOA_FOLLOWED_CALLS = 1 # Depth of calls in Rope static analysis (Rope default is 1).
 
 python_version = sys.version_info[0]
-user_input = raw_input if python_version == 2 else input
 filterfalse = itertools.ifilterfalse if python_version == 2 else itertools.filterfalse
 
 #
@@ -71,6 +70,20 @@ original_names_sets_dict = {} # Original names in files, keyed by realpath to th
 final_names_sets_dict = {} # The final names in files, after all changes.
 
 modified_modules_set = set() # Set containing the realpaths of modified modules.
+
+def user_input(*args, **kwargs):
+    print(*args, end="", flush=True)
+    if python_version == 2:
+        input_fun = raw_input
+    else:
+        input_fun = input
+    if cmdline_args.yes_to_all:
+        print("y")
+        return "y"
+    if cmdline_args.yes_no_default:
+        print("")
+        return "" # Gives the default, yes if no warning.
+    return input_fun(*args, **kwargs)
 
 def save_set_of_all_names_in_module(file_realpath, save_dict):
     """Get the names in the file and save in the dict `save_dict` keyed by
@@ -685,8 +698,10 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
             print_info("Do the changes? [yncd] ", end="")
             yes_no = user_input("").strip()
             if not yes_no or yes_no not in "dcyYnN": # Set default reply.
-                if warning: yes_no = "n"
-                else: yes_no = "y"
+                if warning:
+                    yes_no = "n"
+                else:
+                    yes_no = "y"
             if yes_no == "c":
                 print_info("\n", "-" * BANNER_WIDTH, "\n", sep="")
                 print_info("Enter a different string: ", end="")
@@ -743,10 +758,15 @@ def parse_args():
                         help="The root directory of the project.")
     parser.add_argument("modules", type=str, nargs="+", metavar="MODULE",
                         help="Paths to all the modules to rename, including in subpackages.")
-    args = parser.parse_args()
+    parser.add_argument("--yes-to-all", action="store_true", default=False,
+                        help="Run the program with user-responses always 'y'.")
+    parser.add_argument("--yes-no-default", action="store_true", default=False,
+                        help="Run the program with user-responses always ''.  This gives"
+                             " the default of 'y' if no warning, else 'n'.")
 
+    cmdline_args = parser.parse_args()
 
-    project_dir = args.dir[0]
+    project_dir = cmdline_args.dir[0]
     project_dir_realpath = os.path.realpath(project_dir)
     if not os.path.isdir(project_dir_realpath):
         print_error("Error: First argument is not a directory.")
@@ -756,7 +776,7 @@ def parse_args():
     if os.path.exists(os.path.join(project_dir, "__init__.py")):
         project_is_package = True
 
-    fname_list = args.modules
+    fname_list = cmdline_args.modules
     for f in fname_list:
         if not os.path.isfile(f):
             print_error("Error: This argument should be a file but is not:\n   {}\n"
@@ -767,9 +787,7 @@ def parse_args():
                           "\nRope will have problems).  This file did not:\n   ", f)
             sys.exit(1)
 
-    return args, project_dir, project_dir_realpath, fname_list, project_is_package
-
-args, project_dir, project_dir_realpath, fname_list, project_is_package = parse_args()
+    return cmdline_args, project_dir, project_dir_realpath, fname_list, project_is_package
 
 def main():
     """Run the program."""
@@ -890,6 +908,11 @@ def main():
                 break
 
     project.close()
+
+
+# Call fun to get the command-line args.  Note these are module-scope variables.
+cmdline_args, project_dir, project_dir_realpath, fname_list, project_is_package = parse_args()
+print("args are", cmdline_args, cmdline_args.yes_to_all)
 
 if __name__ == "__main__":
 

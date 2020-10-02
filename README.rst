@@ -68,6 +68,14 @@ to make all the changes in one run of the program. That is because the program
 collects and saves all the names in modules to change, before any changes are
 made, in order to give warnings about possible name collisions.
 
+If you want to quickly convert a (copy of a) full project at once to see what
+the results would be, two command-line options are provided.  The option
+``--yes-to-all`` runs the program as if the user entered "y" to all queries.
+The option ``--yes-no-default`` run the program as if the user just hit return,
+giving the default action (which is to accept changes without warnings and
+reject others).  The latter is safer, but in either case running without
+reviewing the changes may result in some changes that are unintended.
+
 How it works
 ------------
 
