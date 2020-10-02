@@ -88,11 +88,11 @@ the renaming.
 The names and offsets from a module file are all re-calculated after each
 change, since offsets can change with each modification.  The running time is
 nevertheless not bad for interactive use.  Variable names for rejected name
-changes --- which remain the same as the original variable name --- are
-temporarily renamed to have a magic string appended to them.  This is so the
-program knows the name should be retained.  This magic string is then globally
-removed from all the files all the possible changes are processed.  If the
-program halts abnormally (such that the ``finally`` of a ``try`` is not
+changes --- which keep the original variable name --- are temporarily renamed
+to have a magic string appended to them.  This is so the program knows the name
+has been reviewed and should be retained.  This magic string is then globally
+removed from all the files after all the possible changes are processed.  If
+the program halts abnormally (such that the ``finally`` of a ``try`` is not
 executed) some of those magic strings may still be present.
 
 Warnings and theory
