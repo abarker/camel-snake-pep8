@@ -24,13 +24,13 @@ with codecs.open(os.path.join(current_dir, "README.rst"), encoding="utf-8") as f
 
 setup(
     name="camel-snake-pep8",
-    version="0.2.1", # major version, minor version, patch (see PEP440)
+    version="0.2.2", # major version, minor version, patch (see PEP440)
     description="Use Python-Rope to convert names in a Python project to conform with PEP-8.",
     keywords=["pep-8", "PEP-8", "PEP8", "refactor", "rename"],
     install_requires=["wheel", "rope", "colorama"],
     url="https://github.com/abarker/camel-snake-pep8",
     entry_points = {"console_scripts": [ # Note non-package still entered as if in a package.
-                    "camel-snake-pep8 = camel_snake_pep8.camel_snake_pep8:run_then_fix_rejected_and_analyze",
+                    "camel-snake-pep8 = camel_snake_pep8:run_then_fix_rejected_and_analyze",
                     ]},
     license="MIT",
     classifiers=[
