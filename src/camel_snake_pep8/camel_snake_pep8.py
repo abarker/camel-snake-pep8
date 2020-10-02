@@ -915,13 +915,7 @@ def main():
 
     project.close()
 
-
-# Call fun to get the command-line args.  Note these are module-scope variables.
-cmdline_args, project_dir, project_dir_realpath, fname_list, project_is_package = parse_args()
-print("args are", cmdline_args, cmdline_args.yes_to_all)
-
-if __name__ == "__main__":
-
+def run_then_fix_rejected_and_analyze():
     try:
         main()
     except (KeyboardInterrupt, EOFError):
@@ -929,4 +923,13 @@ if __name__ == "__main__":
     finally:
         remove_rejected_change_magic_cookies(modified_modules_set)
         analyze_names_in_final_state([os.path.realpath(f) for f in fname_list])
+
+# Call fun to get the command-line args.  Note these are module-scope variables.
+cmdline_args, project_dir, project_dir_realpath, fname_list, project_is_package = parse_args()
+print("args are", cmdline_args, cmdline_args.yes_to_all)
+
+if __name__ == "__main__":
+
+    run_then_fix_rejected_and_analyze()
+
 
