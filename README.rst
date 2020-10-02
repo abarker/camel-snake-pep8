@@ -40,9 +40,9 @@ To install using pip, run::
 
 A recent version of Rope is recommended for Python 3 compatibility.
 
-The program is a single module, and can also be downloaded and run as ``python
-src/camel_snake_pep8.py``, provided the dependencies (colorama and rope) are
-installed.
+The program is a single module, and can also be downloaded and run directly as
+``python camel_snake_pep8.py``, provided the dependencies (colorama and rope)
+are installed.
 
 Usage::
 
