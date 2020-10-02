@@ -26,7 +26,7 @@ setup(
     name="camel-snake-pep8",
     version="0.2.0", # major version, minor version, patch (see PEP440)
     description="Use Python-Rope to convert names in a Python project to conform with PEP-8.",
-    keywords=["pep-8", "PEP-8", "PEP8", "refactor"],
+    keywords=["pep-8", "PEP-8", "PEP8", "refactor", "rename"],
     install_requires=["wheel", "rope", "colorama"],
     url="https://github.com/abarker/camel-snake-pep8",
     entry_points = {"console_scripts": [ # Note non-package still entered as if in a package.

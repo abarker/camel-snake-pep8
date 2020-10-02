@@ -34,31 +34,31 @@ two programs to help isolate any problems which might be introduced.
 Installing and using
 --------------------
 
-The dependences can be installed by the following command::
+To install using pip, run::
 
-   pip install rope colorama --upgrade
+   pip install camel-snake-pep8 --upgrade
 
 A recent version of Rope is recommended for Python 3 compatibility.
 
-To install the program just clone or download the git repository and run
-the main file ``camel_snake_pep8.py``.  The program is currently a single
-module (so you could alternately just copy that file).
+The program is a single module, and can also be downloaded and run as ``python
+src/camel_snake_pep8.py``, provided the dependencies (colorama and rope) are
+installed.
 
 Usage::
 
-      python camel_snake_pep8.py <projectDir> <moduleToModify> [<moduleToModify> ...]
+      camel-snake-pep8 <projectDir> <moduleToModify> [<moduleToModify> ...]
 
 The program can be used to refactor either Python 2 or Python 3 code.  **Run
-the program with the same version of Python as the code that is being
+the program installed in the same version of Python as the code that is being
 modified.** That is, if the code being refactored is Python 2 code then run the
-program with `python2`, and similarly for Python 3.
+program installed in Python 2, and similarly for Python 3.
 
 Note that Rope currently only has limited support for Python 3 type hinting.
 
 As an example, to change all the Python files in a package with one subpackage
 go to the package root directory and type::
 
-    python camel_snake_pep8.py . *.py */*.py
+    camel-snake-pep8 . *.py */*.py
 
 Be sure to include the paths to any subpackage modules, subsubpackage modules,
 etc., which are to be modified on the same line.  Note that any faulty code in
