@@ -72,11 +72,17 @@ final_names_sets_dict = {} # The final names in files, after all changes.
 modified_modules_set = set() # Set containing the realpaths of modified modules.
 
 def user_input(*args, **kwargs):
-    print(*args, end="", flush=True)
+    """Get a response to user queries."""
+    if python_version == 2:
+        print(*args, end="")
+    else:
+        print(*args, end="", flush=True)
+
     if python_version == 2:
         input_fun = raw_input
     else:
         input_fun = input
+
     if cmdline_args.yes_to_all:
         print("y")
         return "y"
