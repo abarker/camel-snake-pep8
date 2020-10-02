@@ -63,7 +63,7 @@ go to the package root directory and type::
 Be sure to include the paths to any subpackage modules, subsubpackage modules,
 etc., which are to be modified on the same line.  Note that any faulty code in
 the same directory as the files to be modified may cause Rope to fail, since it
-loads those also.
+looks at those also.
 
 The program can be stopped at any time with ``^C``.  But note that it is better
 to make all the changes in one run of the program. That is because the program
