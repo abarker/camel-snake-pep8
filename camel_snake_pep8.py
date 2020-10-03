@@ -851,7 +851,7 @@ def main():
     project = Project(project_dir, prefs = { # See .ropeproject/config.py; these override.
                                       #"indent_size": 4, # Default is 4.
                                       "save_history": False, # Default is True.
-                                      #"soa_followed_calls": 0, # Default is 0.
+                                      "soa_followed_calls": 2, # Default is 0.
                                       #"ignore_syntax_errors": True, # Default is False.
                                       #"python_files": ["*.py"], # Default is ["*.py"]
                                       })
