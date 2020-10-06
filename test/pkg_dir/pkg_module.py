@@ -2,6 +2,8 @@
 
 This is mainly to test that submodules are handled correctly.
 
+NOTE: Be sure package name in absolute imports matches dir name if copied.
+
 """
 
 from __future__ import print_function, division, absolute_import
