@@ -1,5 +1,5 @@
 
 print("__init__.py of main module.")
 
-import pkg_module
+from . import pkg_module
 

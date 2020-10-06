@@ -10,7 +10,8 @@ It queries the user as to whether or not to accept the changes.
 The program does not do all the changes for full PEP-8 naming compliance, but
 it does most of them.  It currently does not recognize unpacked assignments to
 tuples very well, and it does not try to modify any names in the context of
-import statements.
+import statements (though Rope will indirectly change some names in import
+statements if they are renamed elsewhere).
 
 Note that a formatting program such as autopep8 (which is pip installable) can
 be used to automatically fix many syntactical and spacing issues, but those
