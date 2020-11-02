@@ -24,7 +24,7 @@ with codecs.open(os.path.join(current_dir, "README.rst"), encoding="utf-8") as f
 
 setup(
     name="camel-snake-pep8",
-    version="0.2.2", # major version, minor version, patch (see PEP440)
+    version="0.2.3", # major version, minor version, patch (see PEP440)
     description="Use Python-Rope to convert names in a Python project to conform with PEP-8.",
     keywords=["pep-8", "PEP-8", "PEP8", "refactor", "rename"],
     install_requires=["wheel", "rope", "colorama"],

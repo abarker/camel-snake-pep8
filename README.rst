@@ -30,7 +30,7 @@ two programs to help isolate any problems which might be introduced.
   modules, especially with "import ... as", so it might be a good idea to
   change all names which appear in such statements by hand.
 
-* **Only tested on Ubuntu Linux.**  May or may not work on Windows.
+* Mostly tested on Ubuntu Linux but should also work on Windows.
 
 Installing and using
 --------------------
@@ -49,6 +49,11 @@ Usage::
 
       camel-snake-pep8 <projectDir> <moduleToModify> [<moduleToModify> ...]
 
+If the module arguments are omitted the program will gather all the ``.py``
+files in the ``<projectDir>`` directory, and recursively for any subpackages
+if the directory has an ``__init__.py`` file.  If all arguments are omitted
+then the current directory is assumed to be the main project directory.
+
 The program can be used to refactor either Python 2 or Python 3 code.  **Run
 the program installed in the same version of Python as the code that is being
 modified.** That is, if the code being refactored is Python 2 code then run the
@@ -59,12 +64,17 @@ Note that Rope currently only has limited support for Python 3 type hinting.
 As an example, to change all the Python files in a package with one subpackage
 go to the package root directory and type::
 
+    camel-snake-pep8
+
+or, equivalently::
+
     camel-snake-pep8 . *.py */*.py
 
-Be sure to include the paths to any subpackage modules, subsubpackage modules,
-etc., which are to be modified on the same line.  Note that any faulty code in
-the same directory as the files to be modified may cause Rope to fail, since it
-looks at those also.
+If individual modules to modify are listed be sure to also include the paths to
+any subpackage modules, subsubpackage modules, etc., which are to be modified
+on the same line.  Note that any faulty code in the same directory as the files
+to be modified may cause Rope to fail, since Rope looks at those also (and may
+modify them secondary to a change in a selected file).
 
 The program can be stopped at any time with ``^C``.  But note that it is better
 to make all the changes in one run of the program. That is because the program
