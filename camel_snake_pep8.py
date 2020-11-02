@@ -41,8 +41,9 @@ from rope.base.project import Project
 from rope.base.libutils import get_string_scope, get_string_module # Not currently used.
 from rope.refactor.rename import Rename
 from rope.base import worder
-from colorama import Fore, Back, Style
+from colorama import Fore, Back, Style, init as colorama_init
 
+colorama_init()
 system_os = platform.system()
 
 change_function_and_method_names = True
@@ -53,11 +54,20 @@ change_class_names = True
 
 BANNER_WIDTH = 78
 
-BLUE_INFO_COLOR = Fore.BLUE + Style.BRIGHT
-YELLOW_WARNING_COLOR = Fore.YELLOW
-RED_ERROR_COLOR = Fore.RED
-NEW_NAME_COLOR = Fore.GREEN
-CURR_NAME_COLOR = Fore.CYAN
+if system_os == "Windows":
+    BLUE_INFO_COLOR = Fore.BLUE + Back.WHITE + Style.BRIGHT
+    YELLOW_WARNING_COLOR = Fore.YELLOW + Back.BLACK + Style.BRIGHT
+    RED_ERROR_COLOR = Fore.RED
+    NEW_NAME_COLOR = Fore.GREEN
+    CURR_NAME_COLOR = Fore.CYAN
+else:
+    BLUE_INFO_COLOR = Fore.BLUE + Style.BRIGHT
+    YELLOW_WARNING_COLOR = Fore.YELLOW
+    RED_ERROR_COLOR = Fore.RED
+    NEW_NAME_COLOR = Fore.GREEN
+    CURR_NAME_COLOR = Fore.CYAN
+    RESET = Style.RESET_ALL
+
 RESET = Style.RESET_ALL
 
 REJECTED_CHANGE_MAGIC_COOKIE = "_XxX_CamelSnakePep8_PreserveName_XxX_"
@@ -851,7 +861,13 @@ def parse_args():
     if not fname_list:
         fname_list = recursive_get_files(project_dir)
 
-    for f in fname_list:
+    fname_realpaths = []
+    for fname in fname_list:
+        fname = expand_path(fname)
+        globbed_fnames = glob_pathname(fname)
+        fname_realpaths += [os.path.realpath(f) for f in globbed_fnames]
+
+    for f in fname_realpaths:
         if not os.path.isfile(f):
             print_error("Error: This argument should be a file but is not:\n   {}\n"
                         .format(f))
@@ -861,7 +877,7 @@ def parse_args():
                           "\nRope will have problems).  This file did not:\n   ", f)
             sys.exit(1)
 
-    return cmdline_args, project_dir, project_dir_realpath, fname_list, project_is_package
+    return cmdline_args, project_dir, project_dir_realpath, fname_realpaths, project_is_package
 
 def main():
     """Run the program."""
@@ -909,10 +925,6 @@ def main():
     else:
         print("\nNot modifying the docs by default.")
         docs = False
-
-    print("\nConverting these files:")
-    for f in fname_list:
-        print("   ", f)
 
     print_info("\nHit enter to begin the refactoring... ", end="")
     user_input("")
