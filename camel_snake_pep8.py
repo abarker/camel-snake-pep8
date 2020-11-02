@@ -387,11 +387,9 @@ def recursive_get_files(dirname, glob_pat="*.py", at_root=True):
     if not at_root and not has_init_dot_py:
         return []
 
-    current_matches = pyfiles
-
     for d in dirnames:
-        current_matches += recursive_get_files(d, at_root=False, glob_pat=glob_pat)
-    return current_matches
+        pyfiles += recursive_get_files(d, at_root=False, glob_pat=glob_pat)
+    return pyfiles
 
 #
 # Parsing function parameter strings (to find the parameters without default values).
@@ -887,10 +885,10 @@ def main():
     os.chdir(project_dir)
 
     if project_is_package:
-        print("The project is detected as a Python package in directory\n   {}"
+        print("The project is detected as a Python package in directory:\n   {}"
               .format(project_dir))
     else:
-        print("The project is detected to be non-package Python scripts in directory\n   {}"
+        print("The project is detected to be non-package Python scripts in directory:\n   {}"
               .format(project_dir))
 
     print("\nThe files to be modified are:")
