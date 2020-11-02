@@ -32,6 +32,9 @@ import re
 import itertools
 from collections import defaultdict
 import argparse
+import fnmatch
+import glob
+import platform
 
 import rope
 from rope.base.project import Project
@@ -39,6 +42,8 @@ from rope.base.libutils import get_string_scope, get_string_module # Not current
 from rope.refactor.rename import Rename
 from rope.base import worder
 from colorama import Fore, Back, Style
+
+system_os = platform.system()
 
 change_function_and_method_names = True
 change_function_and_method_arguments = True
@@ -326,6 +331,57 @@ def unique_everseen(iterable, key=None):
             if k not in seen:
                 seen_add(k)
                 yield element
+
+def expand_path(path):
+    """Get the canonical form of the absolute path from a possibly relative path
+    (which may have symlinks, etc.)"""
+    return os.path.expandvars(os.path.expanduser(path))
+
+def glob_pathname(path, exact_num_args=False, windows_only=False):
+    """Expands any globbing in `path` (Windows shells don't do it).
+
+    The `path` parameter should be a single pathname possibly containing glob
+    symbols. The argument `exact_num_args` can be set to an integer to check
+    for an exact number of matching files.  If `window_only` is true and
+    `system_os` is not Windows then a list containing `path` is returned
+    unmodified.
+
+    Returns a list of all the matching paths."""
+    if windows_only and system_os != "Windows":
+        return [path]
+    globbed = glob.glob(path)
+    if not globbed:
+        print_warning("\nWarning: The wildcards in the path\n   "
+              + path + "\nfailed to expand.  Treating as literal.", file=sys.stderr)
+        globbed = [path]
+    if exact_num_args and len(globbed) != exact_num_args:
+        print_error("\nError: The wildcards in the path\n   {}"
+              "\nexpand to more than {} pathnames.".format(path, exact_num_args),
+              file=sys.stderr)
+        sys.exit(1)
+    return globbed
+
+def recursive_get_files(dirname, glob_pat="*.py", at_root=True):
+    """Recursive search for Python files in package or at root-level non package."""
+    try:
+        root, dirnames, filenames = next(os.walk(dirname))
+    except StopIteration:
+        return []
+    dirnames = [os.path.join(root, d) for d in dirnames]
+
+    pyfiles = [os.path.join(root, f) for f in fnmatch.filter(filenames, "*.py")]
+    has_init_dot_py = any(s.endswith("__init__.py") for s in pyfiles)
+
+    if at_root and not has_init_dot_py:
+        return pyfiles
+    if not at_root and not has_init_dot_py:
+        return []
+
+    current_matches = pyfiles
+
+    for d in dirnames:
+        current_matches += recursive_get_files(d, at_root=False, glob_pat=glob_pat)
+    return current_matches
 
 #
 # Parsing function parameter strings (to find the parameters without default values).
@@ -760,12 +816,15 @@ def rope_rename_refactor(project, source_file_name, possible_changes, docs=True)
 # Process command-line arguments.
 #
 
+
 def parse_args():
     """Parse the command line arguments."""
+    curdir = os.getcwd()
+
     parser = argparse.ArgumentParser(description="Rename variables to conform to PEP-8.")
-    parser.add_argument("dir", type=str, nargs=1, metavar="PROJECTDIR",
-                        help="The root directory of the project.")
-    parser.add_argument("modules", type=str, nargs="+", metavar="MODULE",
+    parser.add_argument("dir", type=str, nargs="?", metavar="PROJECTDIR",
+                        default=curdir, help="The root directory of the project.")
+    parser.add_argument("modules", type=str, nargs="*", metavar="MODULE",
                         help="Paths to all the modules to rename, including in subpackages.")
     parser.add_argument("--yes-to-all", action="store_true", default=False,
                         help="Run the program with user-responses always 'y'.")
@@ -775,8 +834,11 @@ def parse_args():
 
     cmdline_args = parser.parse_args()
 
-    project_dir = cmdline_args.dir[0]
+    project_dir = cmdline_args.dir
+    project_dir = expand_path(project_dir)
+    project_dir = glob_pathname(project_dir, exact_num_args=1)[0]
     project_dir_realpath = os.path.realpath(project_dir)
+
     if not os.path.isdir(project_dir_realpath):
         print_error("Error: First argument is not a directory.")
         sys.exit(1)
@@ -786,6 +848,9 @@ def parse_args():
         project_is_package = True
 
     fname_list = cmdline_args.modules
+    if not fname_list:
+        fname_list = recursive_get_files(project_dir)
+
     for f in fname_list:
         if not os.path.isfile(f):
             print_error("Error: This argument should be a file but is not:\n   {}\n"
@@ -806,9 +871,15 @@ def main():
     os.chdir(project_dir)
 
     if project_is_package:
-        print("The project is detected as a Python package.")
+        print("The project is detected as a Python package in directory\n   {}"
+              .format(project_dir))
     else:
-        print("The project is detected to be non-package Python scripts.")
+        print("The project is detected to be non-package Python scripts in directory\n   {}"
+              .format(project_dir))
+
+    print("\nThe files to be modified are:")
+    for f in fname_list:
+        print("   ", f)
 
     print_warning("\nBe sure to make a backup copy of all files before running this"
                   "\nprogram. All changes are made to the files in-place.\n")
